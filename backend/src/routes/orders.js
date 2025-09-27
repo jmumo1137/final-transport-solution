@@ -177,6 +177,81 @@ router.post('/:orderId/enroute', async (req, res) => {
     res.status(500).json({ error: 'Failed to mark enroute' });
   }
 });
+// ===================== MARK AWAITING PAYMENT =====================
+router.post('/:orderId/awaiting-payment', async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const order = await db('orders').where({ id: orderId }).first();
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.status !== 'delivered') {
+      return res.status(400).json({ error: 'Order must be delivered before awaiting payment' });
+    }
+
+    await db('orders').where({ id: orderId }).update({
+      status: 'awaiting_payment',
+      updated_at: new Date().toISOString(),
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Awaiting payment error:', err);
+    res.status(500).json({ error: 'Failed to mark awaiting payment' });
+  }
+});
+
+
+// ===================== MARK AS PAID =====================
+router.post('/:orderId/paid', async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const order = await db('orders').where({ id: orderId }).first();
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.status !== 'awaiting_payment') {
+      return res.status(400).json({ error: 'Order must be awaiting payment before marking paid' });
+    }
+
+    await db('orders').where({ id: orderId }).update({
+      status: 'paid',
+      payment_date: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Mark paid error:', err);
+    res.status(500).json({ error: 'Failed to mark paid' });
+  }
+});
+
+// ===================== CLOSE ORDER =====================
+router.post('/:orderId/close', async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const order = await db('orders').where({ id: orderId }).first();
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.status !== 'paid') {
+      return res.status(400).json({ error: 'Order must be paid before closing' });
+    }
+
+    await db('orders').where({ id: orderId }).update({
+      status: 'closed',
+      closed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Close order error:', err);
+    res.status(500).json({ error: 'Failed to close order' });
+  }
+});
+
 
 // ===================== GET SINGLE ORDER =====================
 router.get('/:orderId', async (req, res) => {

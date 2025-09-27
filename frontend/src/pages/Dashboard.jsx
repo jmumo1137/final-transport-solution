@@ -53,45 +53,58 @@ export default function Dashboard() {
   };
 
   const handleNextStep = async (order) => {
-    try {
-      let res;
-      switch (order.status.toLowerCase()) {
-        case 'created':
-          alert('Order must be assigned first via Assign Driver!');
-          return;
-        case 'assigned':
-          res = await api.post(`/api/orders/${order.id}/loaded`);
-          break;
-        case 'loaded':
-          res = await api.post(`/api/orders/${order.id}/enroute`, { start_odometer: 0 });
-          break;
-        case 'enroute':
-          res = await api.post(`/api/orders/${order.id}/delivered`);
-          break;
-        case 'delivered':
-          alert('Order delivered. Payment must be confirmed via webhook.');
-          return;
-        default:
-          alert('Unknown order status');
-          return;
-      }
-      if (res?.data?.ok || res?.data) fetchOrders();
-    } catch (err) {
-      console.error('Next step error:', err.response?.data || err.message);
-      alert(err.response?.data?.error || 'Failed to move to next step.');
+  try {
+    let res;
+    switch (order.status.toLowerCase()) {
+      case 'created':
+        alert('Order must be assigned first via Assign Driver!');
+        return;
+      case 'assigned':
+        res = await api.post(`/api/orders/${order.id}/loaded`);
+        break;
+      case 'loaded':
+        res = await api.post(`/api/orders/${order.id}/enroute`, { start_odometer: 0 });
+        break;
+      case 'enroute':
+        res = await api.post(`/api/orders/${order.id}/delivered`);
+        break;
+      case 'delivered':
+        // Instead of auto-proceeding, move to "awaiting payment"
+        res = await api.post(`/api/orders/${order.id}/awaiting-payment`);
+        break;
+      case 'awaiting_payment':
+        // Here, only webhook should confirm payment, but for manual fallback:
+        res = await api.post(`/api/orders/${order.id}/paid`);
+        break;
+      case 'paid':
+        // Once paid, allow closing
+        res = await api.post(`/api/orders/${order.id}/close`);
+        break;
+        case 'closed':
+        alert('Order is already closed. No further actions.');
+      default:
+        alert('Unknown order status');
+        return;
     }
-  };
+    if (res?.data?.ok || res?.data) fetchOrders();
+  } catch (err) {
+    console.error('Next step error:', err.response?.data || err.message);
+    alert(err.response?.data?.error || 'Failed to move to next step.');
+  }
+};
 
-  const getNextStepLabel = (status) => {
-    switch (status.toLowerCase()) {
-      case 'created': return 'Assign Driver';
-      case 'assigned': return 'Mark Loaded';
-      case 'loaded': return 'Start Transport';
-      case 'enroute': return 'Mark Delivered';
-      case 'delivered': return 'Await Payment';
-      default: return 'Next Step';
-    }
-  };
+const getNextStepLabel = (status) => {
+  switch (status.toLowerCase()) {
+    case 'created': return 'Assign Driver';
+    case 'assigned': return 'Mark Loaded';
+    case 'loaded': return 'Start Transport';
+    case 'enroute': return 'Mark Delivered';
+    case 'delivered': return 'Awaiting Payment';
+    case 'awaiting_payment': return 'Mark as Paid';
+    case 'paid': return 'Close Order';
+    default: return 'Order closed';
+  }
+};
 
   // Driver autocomplete
   const handleDriverChange = async (e) => {
