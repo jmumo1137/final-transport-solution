@@ -1,33 +1,44 @@
 const express = require('express');
+const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const db = require('../db');
-const { ensureAssigned } = require('../middleware/ensureAssigned');
+const db = require('../db'); // your working db
 
-const upload = multer({ dest: path.join(__dirname, '..', 'uploads') });
-const router = express.Router();
+// Storage config
+const storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    cb(null, 'uploads/fuel'); // make sure folder exists
+  },
+  filename: function(req, file, cb) {
+    const unique = Date.now() + '-' + file.originalname;
+    cb(null, unique);
+  }
+});
 
-// Upload fuel receipt
-router.post('/:orderId/upload', ensureAssigned, upload.single('fuel'), async (req, res) => {
-  const { orderId } = req.params;
-  if (!req.file) return res.status(400).json({ error: 'Fuel file required' });
-  const { liters, cost } = req.body;
-  if (!liters || !cost) return res.status(400).json({ error: 'Liters and cost required' });
+const upload = multer({ storage });
 
-  const file_path = `/uploads/${req.file.filename}`;
-
+// POST /api/fuel/:orderId
+router.post('/:orderId', upload.single('file'), async (req, res) => {
   try {
+    const { liters, cost } = req.body;
+    const orderId = req.params.orderId;
+
+    if (!req.file) return res.status(400).json({ error: 'File missing' });
+
+    const filePath = req.file.path;
+
     await db('fuel').insert({
       order_id: orderId,
-      file_path,
-      liters: Number(liters),
-      cost: Number(cost),
-      uploaded_at: new Date().toISOString()
+      file_path: filePath,
+      liters: parseFloat(liters),
+      cost: parseFloat(cost),
+      uploaded_at: new Date().toISOString(),
     });
-    res.json({ ok: true, file_path });
+
+    res.json({ ok: true, message: 'Fuel uploaded successfully' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Fuel upload failed' });
+    res.status(500).json({ error: 'Upload failed', details: err.message });
   }
 });
 

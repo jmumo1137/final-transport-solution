@@ -11,6 +11,9 @@ import Fuel from './pages/Fuel';
 import Mileage from './pages/Mileage';
 import Documents from './pages/Documents';
 import Payment from './pages/Payment';
+import DriverDashboard from './pages/DriverDashboard';
+import DriverOrders from './pages/DriverOrders';
+
 
 function App() {
   const token = useSelector(selectToken);
@@ -20,6 +23,8 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginForm />} />
         <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" />} />
+        <Route path="/driver" element={<DriverDashboard />} />
+        <Route path="/driver/orders" element={<DriverOrders />} />
         <Route path="/orders" element={token ? <Orders /> : <Navigate to="/login" />} />
         <Route path="/fuel/:id" element={token ? <Fuel /> : <Navigate to="/login" />} />
         <Route path="/mileage/:id" element={token ? <Mileage /> : <Navigate to="/login" />} />

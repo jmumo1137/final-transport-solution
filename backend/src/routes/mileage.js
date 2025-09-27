@@ -1,32 +1,32 @@
 const express = require('express');
-const db = require('../db');
-const { ensureAssigned } = require('../middleware/ensureAssigned');
 const router = express.Router();
+const db = require('../db'); // your DB instance
 
-// Log mileage
-router.post('/:orderId/log', ensureAssigned, async (req, res) => {
-  const { orderId } = req.params;
+// POST /api/mileage/:orderId
+router.post('/:orderId', async (req, res) => {
   const { start_odometer, end_odometer } = req.body;
+  const { orderId } = req.params;
 
-  if (start_odometer == null || end_odometer == null) {
-    return res.status(400).json({ error: 'start and end odometer required' });
+  if (start_odometer === undefined || end_odometer === undefined) {
+    return res.status(400).json({ error: 'Start and End odometer are required' });
   }
-  if (Number(end_odometer) < Number(start_odometer)) {
-    return res.status(400).json({ error: 'end_odometer must be >= start_odometer' });
+
+  if (end_odometer < start_odometer) {
+    return res.status(400).json({ error: 'End odometer must be >= start odometer' });
   }
 
   try {
-    await db('mileage').insert({
+    const result = await db('mileage').insert({
       order_id: orderId,
-      start_odometer: Number(start_odometer),
-      end_odometer: Number(end_odometer),
-      logged_at: new Date().toISOString()
+      start_odometer,
+      end_odometer,
+      logged_at: new Date()
     });
-    await db('orders').where({ id: orderId }).update({ end_odometer: Number(end_odometer), updated_at: new Date().toISOString() });
-    res.json({ ok: true });
+
+    res.json({ ok: true, mileageId: result[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Mileage log failed' });
+    console.error('Mileage insert error:', err);
+    res.status(500).json({ error: 'Failed to log mileage' });
   }
 });
 

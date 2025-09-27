@@ -22,15 +22,21 @@ export default function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let res;
       if (isRegister) {
-        const res = await api.post('/auth/register', { username, password, role });
-        const { token, role: userRole, userId } = res.data;
-        dispatch(loginSuccess({ token, role: userRole, userId }));
-        navigate('/dashboard');
+        res = await api.post('/auth/register', { username, password, role });
       } else {
-        const res = await api.post('/auth/login', { username, password });
-        const { token, role: userRole, userId } = res.data;
-        dispatch(loginSuccess({ token, role: userRole, userId }));
+        res = await api.post('/auth/login', { username, password });
+      }
+
+      const { token, role: userRole, userId } = res.data;
+      dispatch(loginSuccess({ token, role: userRole, userId }));
+
+      // ✅ Redirect by role
+      if (userRole === 'driver') {
+        navigate('/driver');
+      } 
+      else {
         navigate('/dashboard');
       }
     } catch (err) {

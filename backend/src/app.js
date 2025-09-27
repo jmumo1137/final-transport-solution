@@ -11,6 +11,8 @@ const mileageRouter = require('./routes/mileage');
 const documentsRouter = require('./routes/documents');
 const paymentsRouter = require('./routes/payments');
 const authRouter = require('./routes/auth');
+const driverOrdersRouter = require('./routes/DriverOrders');
+const fuelRoutes = require('./routes/fuel')
 
 const app = express();
 
@@ -30,6 +32,8 @@ app.use('/api/fuel', fuelRouter);
 app.use('/api/mileage', mileageRouter);
 app.use('/api/documents', documentsRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/driver/orders', driverOrdersRouter);
+app.use('/api/fuel', fuelRoutes);
 
 // Webhook endpoint
 app.post('/api/webhook/payment', async (req, res) => {

@@ -1,35 +1,65 @@
-import React, { useState, useEffect } from 'react';
-import API from '../api/api';
-import { useParams } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectToken } from '../features/auth/authSlice';
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import api from '../api/api';
 
 export default function Mileage() {
-  const { id } = useParams();
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
+  const { id } = useParams(); // order ID
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    API.get(`/orders/${id}`).then(r => {
-      setStart(r.data.start_odometer || 0);
-    });
-  }, [id]);
+  const [startOdometer, setStartOdometer] = useState('');
+  const [endOdometer, setEndOdometer] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  async function submit(e) {
-    e.preventDefault();
-    if (Number(end) < Number(start)) return alert('end must be >= start');
-    await API.post(`/mileage/${id}/log`, { start_odometer: Number(start), end_odometer: Number(end) });
-    alert('mileage logged');
-  }
+  const handleSubmit = async () => {
+    if (!startOdometer || !endOdometer) {
+      alert('Start and End odometer are required!');
+      return;
+    }
+
+    if (Number(endOdometer) < Number(startOdometer)) {
+      alert('End odometer must be greater than or equal to start odometer');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.post(`/api/mileage/${id}`, {
+        start_odometer: Number(startOdometer),
+        end_odometer: Number(endOdometer)
+      });
+
+      if (res.data?.ok) {
+        alert('Mileage logged successfully!');
+        navigate('/driver'); // return to driver dashboard
+      }
+    } catch (err) {
+      console.error('Mileage error:', err.response?.data || err.message);
+      alert(err.response?.data?.error || 'Failed to log mileage');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div>
-      <h3>Mileage — Order {id}</h3>
-      <form onSubmit={submit}>
-        <input value={start} onChange={e => setStart(e.target.value)} />
-        <input value={end} onChange={e => setEnd(e.target.value)} placeholder="end odometer" />
-        <button>Log Mileage</button>
-      </form>
+    <div style={{ padding: 20 }}>
+      <h2>Log Mileage — Order {id}</h2>
+      <input
+        type="number"
+        placeholder="Start Odometer"
+        value={startOdometer}
+        onChange={e => setStartOdometer(e.target.value)}
+        style={{ display: 'block', marginBottom: 10 }}
+      />
+      <input
+        type="number"
+        placeholder="End Odometer"
+        value={endOdometer}
+        onChange={e => setEndOdometer(e.target.value)}
+        style={{ display: 'block', marginBottom: 10 }}
+      />
+      <button onClick={handleSubmit} disabled={loading}>
+        {loading ? 'Logging...' : 'Log Mileage'}
+      </button>
     </div>
   );
 }
