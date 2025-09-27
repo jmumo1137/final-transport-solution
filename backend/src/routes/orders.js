@@ -18,10 +18,7 @@ router.post('/', async (req, res) => {
         .where({ username: driver_username, role: 'driver' })
         .first();
 
-      if (!driver) {
-        return res.status(400).json({ error: 'Driver not found' });
-      }
-
+      if (!driver) return res.status(400).json({ error: 'Driver not found' });
       driverId = driver.id;
     }
 
@@ -85,10 +82,7 @@ router.post('/:orderId/assign', async (req, res) => {
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
     // Auto-generate waybill if not already set
-    let waybill = order.waybill;
-    if (!waybill) {
-      waybill = `WB-${Date.now()}-${order.id}`;
-    }
+    const waybill = order.waybill || `WB-${Date.now()}-${order.id}`;
 
     await db('orders').where({ id: orderId }).update({
       driver_id: driver.id,
@@ -106,9 +100,10 @@ router.post('/:orderId/assign', async (req, res) => {
   }
 });
 
-// ===================== STATUS TRANSITIONS =====================
+// ===================== MARK LOADED =====================
 router.post('/:orderId/loaded', async (req, res) => {
   const { orderId } = req.params;
+
   try {
     const order = await db('orders').where({ id: orderId }).first();
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -122,19 +117,53 @@ router.post('/:orderId/loaded', async (req, res) => {
       updated_at: new Date().toISOString(),
     });
 
-    res.json({ ok: true });
+    res.json({ ok: true, message: 'Order marked as loaded' });
   } catch (err) {
-    console.error(err);
+    console.error('Mark loaded error:', err);
     res.status(500).json({ error: 'Failed to mark loaded' });
   }
 });
-
-router.post('/:orderId/enroute', async (req, res) => {
+// ===================== MARK DELIVERED =====================
+router.post('/:orderId/delivered', async (req, res) => {
   const { orderId } = req.params;
-  const { start_odometer } = req.body;
+
   try {
     const order = await db('orders').where({ id: orderId }).first();
     if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.status.toLowerCase() !== 'enroute') {
+      return res.status(400).json({ error: 'Order must be enroute before marking delivered' });
+    }
+
+    // Optional: you can check if POD is uploaded here if your system requires it
+    // e.g. if (!order.pod) return res.status(400).json({ error: 'POD is required before delivery' });
+
+    await db('orders').where({ id: orderId }).update({
+      status: 'delivered',
+      delivered_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    res.json({ ok: true, message: 'Order marked as delivered' });
+  } catch (err) {
+    console.error('Mark delivered error:', err);
+    res.status(500).json({ error: 'Failed to mark delivered' });
+  }
+});
+
+
+// ===================== MARK ENROUTE =====================
+router.post('/:orderId/enroute', async (req, res) => {
+  const { orderId } = req.params;
+  const { start_odometer } = req.body;
+
+  try {
+    const order = await db('orders').where({ id: orderId }).first();
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (!order.status || order.status.toLowerCase() !== 'loaded') {
+      return res.status(400).json({ error: 'Order must be loaded before starting transport' });
+    }
 
     await db('orders').where({ id: orderId }).update({
       status: 'enroute',
@@ -142,9 +171,9 @@ router.post('/:orderId/enroute', async (req, res) => {
       updated_at: new Date().toISOString(),
     });
 
-    res.json({ ok: true });
+    res.json({ ok: true, message: 'Order marked as enroute' });
   } catch (err) {
-    console.error(err);
+    console.error('Mark enroute error:', err);
     res.status(500).json({ error: 'Failed to mark enroute' });
   }
 });
