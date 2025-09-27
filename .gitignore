@@ -1,0 +1,22 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+
+# Databases (optional, exclude SQLite files)
+*.sqlite
+*.db
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
