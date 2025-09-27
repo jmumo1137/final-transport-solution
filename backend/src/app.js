@@ -26,7 +26,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Mount routers
 app.use('/auth', authRouter);            // /auth/login, /auth/register
 app.use('/api/orders', ordersRouter);    // all order routes
-// app.use('/users', usersRouter);          // driver search
+app.use('/users', usersRouter);          // driver search
 app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/fuel', fuelRouter);
 app.use('/api/mileage', mileageRouter);

@@ -54,6 +54,20 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
+// ADD VEHICLE
+router.post('/vehicles', async (req, res) => {
+  const { reg_number, model, current_odometer } = req.body;
+  if (!reg_number || !model || current_odometer == null)
+    return res.status(400).json({ error: 'All fields are required' });
+
+  try {
+    const [id] = await db('vehicles').insert({ reg_number, model, current_odometer });
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to add vehicle' });
+  }
+});
 
 // ===================== DRIVER SEARCH =====================
 router.get('/drivers', async (req, res) => {
