@@ -26,16 +26,20 @@ export default function Dashboard() {
     try {
       const res = await api.get('/api/orders');
       let filtered = res.data;
+
+      // Role-based filtering
       if (role === 'driver') filtered = filtered.filter(o => o.driver_id === userId);
-      else if (role === 'consignee') filtered = filtered.filter(o => o.customer_name === userId);
+      if (role === 'consignee') filtered = filtered.filter(o => o.customer_name === userId);
+
       setOrders(filtered);
     } catch (err) {
       console.error('fetchOrders error:', err);
     }
   };
 
-  // Fetch vehicles
+  // Fetch vehicles (only for admin/dispatcher)
   const fetchVehicles = async () => {
+    if (role === 'consignee') return;
     try {
       const res = await api.get('/api/vehicles');
       setVehicles(res.data || []);
@@ -49,37 +53,28 @@ export default function Dashboard() {
     fetchVehicles();
   }, [role, userId]);
 
-  // Filter available vehicles
-  const availableVehicles = vehicles.filter(v => {
-    return !orders.some(o => o.vehicle_id === v.id && activeStatuses.includes(o.status.toLowerCase()));
-  });
-
-  // Vehicle row coloring
-  const getVehicleRowColor = (status) => {
-    if (status === 'Available') return '#d4edda';
-    if (['created', 'assigned', 'loaded', 'enroute'].includes(status.toLowerCase())) return '#ffe5b4';
-    if (['delivered', 'awaiting_payment', 'paid'].includes(status.toLowerCase())) return '#fff3cd';
-    return '#f8d7da';
-  };
-
-  const vehiclesWithStatus = vehicles.map(v => {
-    const assignedOrder = orders.find(o => o.vehicle_id === v.id && activeStatuses.includes(o.status.toLowerCase()));
-    return {
-      ...v,
-      status: assignedOrder ? assignedOrder.status : 'Available',
-      rowColor: assignedOrder ? getVehicleRowColor(assignedOrder.status) : getVehicleRowColor('Available')
-    };
-  });
-
-  // Logout
   const handleLogout = () => {
     dispatch(logout());
     localStorage.removeItem('token');
     navigate('/login');
   };
 
-  // Order lifecycle
+  const getNextStepLabel = (status) => {
+    switch (status.toLowerCase()) {
+      case 'created': return 'Assign Driver';
+      case 'assigned': return 'Mark Loaded';
+      case 'loaded': return 'Start Transport';
+      case 'enroute': return 'Mark Delivered';
+      case 'delivered': return 'Awaiting Payment';
+      case 'awaiting_payment': return 'Mark as Paid';
+      case 'paid': return 'Close Order';
+      default: return 'Order closed';
+    }
+  };
+
   const handleNextStep = async (order) => {
+    if (role === 'consignee') return; // Consignees cannot move orders
+
     try {
       let res;
       switch (order.status.toLowerCase()) {
@@ -100,21 +95,28 @@ export default function Dashboard() {
     }
   };
 
-  const getNextStepLabel = (status) => {
-    switch (status.toLowerCase()) {
-      case 'created': return 'Assign Driver';
-      case 'assigned': return 'Mark Loaded';
-      case 'loaded': return 'Start Transport';
-      case 'enroute': return 'Mark Delivered';
-      case 'delivered': return 'Awaiting Payment';
-      case 'awaiting_payment': return 'Mark as Paid';
-      case 'paid': return 'Close Order';
-      default: return 'Order closed';
-    }
+  // Vehicle helpers (only for admin/dispatcher)
+  const availableVehicles = vehicles.filter(v => {
+    return !orders.some(o => o.vehicle_id === v.id && activeStatuses.includes(o.status.toLowerCase()));
+  });
+  const getVehicleRowColor = (status) => {
+    if (status === 'Available') return '#d4edda';
+    if (['created', 'assigned', 'loaded', 'enroute'].includes(status.toLowerCase())) return '#ffe5b4';
+    if (['delivered', 'awaiting_payment', 'paid'].includes(status.toLowerCase())) return '#fff3cd';
+    return '#f8d7da';
   };
+  const vehiclesWithStatus = vehicles.map(v => {
+    const assignedOrder = orders.find(o => o.vehicle_id === v.id && activeStatuses.includes(o.status.toLowerCase()));
+    return {
+      ...v,
+      status: assignedOrder ? assignedOrder.status : 'Available',
+      rowColor: assignedOrder ? getVehicleRowColor(assignedOrder.status) : getVehicleRowColor('Available')
+    };
+  });
 
-  // Driver autocomplete
+  // Driver autocomplete (only for admin/dispatcher)
   const handleDriverChange = async (e) => {
+    if (role === 'consignee') return;
     const value = e.target.value;
     setDriverUsername(value);
     if (value.length >= 1) {
@@ -127,13 +129,11 @@ export default function Dashboard() {
       }
     } else setDriverSuggestions([]);
   };
-
   const handleSelectDriver = (username) => {
     setDriverUsername(username);
     setDriverSuggestions([]);
   };
 
-  // Assign driver & vehicle
   const handleAssignDriver = async () => {
     if (!driverUsername || !vehicleId) {
       alert('Driver and Vehicle are required!');
@@ -155,13 +155,15 @@ export default function Dashboard() {
     }
   };
 
-  // Add Vehicle
+  // Add Vehicle (admin/dispatcher only)
   const handleAddVehicle = async () => {
+    if (role === 'consignee') return;
     const { reg_number, model, current_odometer } = newVehicle;
     if (!reg_number.trim() || !model.trim()) {
       alert('Registration and Model are required!');
       return;
     }
+
     try {
       const res = await api.post('/api/vehicles', {
         reg_number: reg_number.trim(),
@@ -190,8 +192,8 @@ export default function Dashboard() {
       <table border="1" cellPadding="5" style={{ marginTop: 20, width: '100%' }}>
         <thead>
           <tr>
-            <th>ID</th><th>Customer</th><th>Pickup</th><th>Destination</th>
-            <th>Waybill</th><th>Status</th><th>Actions</th>
+            <th>ID</th><th>Customer</th><th>Pickup</th><th>Destination</th><th>Waybill</th><th>Status</th>
+            {role !== 'consignee' && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -199,71 +201,65 @@ export default function Dashboard() {
             <tr key={order.id}>
               <td>{order.id}</td><td>{order.customer_name}</td><td>{order.pickup}</td><td>{order.destination}</td>
               <td>{order.waybill}</td><td>{order.status}</td>
-              <td>
-                <button onClick={() => {
-                  if (order.status.toLowerCase() === 'created') setAssignOrderId(order.id);
-                  else handleNextStep(order);
-                }}>{getNextStepLabel(order.status)}</button>
-              </td>
+              {role !== 'consignee' && (
+                <td>
+                  <button onClick={() => {
+                    if (order.status.toLowerCase() === 'created') setAssignOrderId(order.id);
+                    else handleNextStep(order);
+                  }}>{getNextStepLabel(order.status)}</button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* Add Vehicle */}
-      <h2 style={{ marginTop: 40 }}>Add Vehicle</h2>
-      <div style={{ marginBottom: 20 }}>
-        <input placeholder="Registration" value={newVehicle.reg_number} onChange={e => setNewVehicle({...newVehicle, reg_number: e.target.value})} />
-        <input placeholder="Model" value={newVehicle.model} onChange={e => setNewVehicle({...newVehicle, model: e.target.value})} />
-        <input placeholder="Odometer" type="number" value={newVehicle.current_odometer} onChange={e => setNewVehicle({...newVehicle, current_odometer: e.target.value})} />
-        <button onClick={handleAddVehicle}>Add Vehicle</button>
-      </div>
+      {/* Vehicles Section (admin/dispatcher only) */}
+      {role !== 'consignee' && (
+        <>
+          <h2 style={{ marginTop: 40 }}>Add Vehicle</h2>
+          <div style={{ marginBottom: 20 }}>
+            <input placeholder="Registration" value={newVehicle.reg_number} onChange={e => setNewVehicle({...newVehicle, reg_number: e.target.value})} />
+            <input placeholder="Model" value={newVehicle.model} onChange={e => setNewVehicle({...newVehicle, model: e.target.value})} />
+            <input placeholder="Odometer" type="number" value={newVehicle.current_odometer} onChange={e => setNewVehicle({...newVehicle, current_odometer: e.target.value})} />
+            <button onClick={handleAddVehicle}>Add Vehicle</button>
+          </div>
 
-      {/* Vehicles Table */}
-      <h2>Vehicles</h2>
-      <table border="1" cellPadding="5" style={{ width: '100%' }}>
-        <thead>
-          <tr><th>ID</th><th>Registration</th><th>Model</th><th>Odometer</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          {vehiclesWithStatus.map(v => (
-            <tr key={v.id} style={{ backgroundColor: v.rowColor, cursor: v.status==='Available' ? 'default' : 'pointer', ...(v.status.toLowerCase()==='enroute'?blinkStyle:{}) }} title={v.status==='Available' ? 'Available' : `Assigned to order`}>
-              <td>{v.id}</td><td>{v.reg_number}</td><td>{v.model}</td><td>{v.current_odometer}</td><td>{v.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          <h2>Vehicles</h2>
+          <table border="1" cellPadding="5" style={{ width: '100%' }}>
+            <thead>
+              <tr><th>ID</th><th>Registration</th><th>Model</th><th>Odometer</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {vehiclesWithStatus.map(v => (
+                <tr key={v.id} style={{ backgroundColor: v.rowColor, cursor: v.status==='Available' ? 'default' : 'pointer', ...(v.status.toLowerCase()==='enroute'?blinkStyle:{}) }} title={v.status==='Available' ? 'Available' : `Assigned to order`}>
+                  <td>{v.id}</td><td>{v.reg_number}</td><td>{v.model}</td><td>{v.current_odometer}</td><td>{v.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
-      {/* Assign Driver Modal */}
-      {assignOrderId && (
+      {/* Assign Driver Modal (admin/dispatcher only) */}
+      {assignOrderId && role !== 'consignee' && (
         <div style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
           <div style={{ background:'#fff', padding:20, borderRadius:8, width:400 }}>
             <h3>Assign Driver & Vehicle</h3>
-
             <input type="text" value={driverUsername} onChange={handleDriverChange} placeholder="Driver username" style={{ width:'100%', padding:5 }} />
-            {driverSuggestions.length > 0 && (
+            {driverSuggestions.length>0 && (
               <ul style={{ background:'#fff', border:'1px solid #ccc', margin:0, padding:0, listStyle:'none', maxHeight:120, overflowY:'auto' }}>
-                {driverSuggestions.map(d => {
-                  const isAssigned = orders.some(o => o.driver_username === d.username && activeStatuses.includes(o.status.toLowerCase()));
-                  return (
-                    <li key={d.id}
-                        style={{ padding:5, cursor:isAssigned?'not-allowed':'pointer', color:isAssigned?'#999':'#000' }}
-                        title={isAssigned ? 'Driver is busy on another order' : 'Available'}
-                        onClick={()=>!isAssigned && handleSelectDriver(d.username)}>
-                      {d.username}
-                    </li>
-                  );
-                })}
+                {driverSuggestions.map(d => (
+                  <li key={d.id} style={{ padding:5, cursor:'pointer' }} onClick={()=>handleSelectDriver(d.username)}>{d.username}</li>
+                ))}
               </ul>
             )}
-
             <select value={vehicleId} onChange={e=>setVehicleId(e.target.value)} style={{ marginTop:10, width:'100%', padding:5 }}>
               <option value="">Select Vehicle</option>
               {availableVehicles.map(v => (
                 <option key={v.id} value={v.id}>{v.reg_number} - {v.model} (Odometer: {v.current_odometer})</option>
               ))}
             </select>
-
             <div style={{ marginTop:15, display:'flex', justifyContent:'space-between' }}>
               <button onClick={handleAssignDriver}>Assign</button>
               <button onClick={()=>setAssignOrderId(null)}>Cancel</button>

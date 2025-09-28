@@ -113,7 +113,7 @@ export default function DriverDashboard() {
                 <td>{order.destination}</td>
                 <td>{order.status}</td>
                 <td>
-                  {/* 🔹 Driver lifecycle button */}
+                  {/*  Driver lifecycle button */}
                   {getDriverActionLabel(order.status) && (
                     <button
                       onClick={() => handleDriverAction(order)}
@@ -123,7 +123,7 @@ export default function DriverDashboard() {
                     </button>
                   )}
 
-                  {/* 🔹 Fuel logging */}
+                  {/*  Fuel logging */}
                   <button
                     onClick={() => navigate(`/fuel/${order.id}`)}
                     disabled={!canLogFuel(order.status)}
@@ -131,7 +131,7 @@ export default function DriverDashboard() {
                     Log Fuel
                   </button>
 
-                  {/* 🔹 Mileage logging */}
+                  {/*  Mileage logging */}
                   <button
                     onClick={() => navigate(`/mileage/${order.id}`)}
                     style={{ marginLeft: 5 }}
@@ -140,7 +140,7 @@ export default function DriverDashboard() {
                     Log Mileage
                   </button>
 
-                  {/* 🔹 POD upload */}
+                  {/*  POD upload */}
                   <button
                     onClick={() => navigate(`/documents/${order.id}`)}
                     style={{ marginLeft: 5 }}

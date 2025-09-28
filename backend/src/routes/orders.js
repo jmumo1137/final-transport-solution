@@ -45,15 +45,24 @@ router.post('/', async (req, res) => {
 });
 
 // ===================== LIST ORDERS =====================
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const list = await db('orders').select('*').orderBy('id', 'desc');
-    res.json(list);
+    let ordersQuery = db('orders');
+    
+    if (req.user.role === 'driver') {
+      ordersQuery = ordersQuery.where({ driver_id: req.user.id });
+    } else if (req.user.role === 'consignee') {
+      ordersQuery = ordersQuery.where({ customer_name: req.user.username }); 
+    }
+    
+    const orders = await ordersQuery.select('*');
+    res.json(orders);
   } catch (err) {
-    console.error(err);
+    console.error('Fetch orders error:', err);
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
+
 
 // ===================== DRIVER SEARCH =====================
 router.get('/drivers', async (req, res) => {
