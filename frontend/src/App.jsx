@@ -13,6 +13,7 @@ import Documents from './pages/Documents';
 import Payment from './pages/Payment';
 import DriverDashboard from './pages/DriverDashboard';
 import DriverOrders from './pages/DriverOrders';
+import AddVehicle from './pages/AddVehicle';
 
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
         <Route path="/documents/:id" element={token ? <Documents /> : <Navigate to="/login" />} />
         <Route path="/payment/:id" element={token ? <Payment /> : <Navigate to="/login" />} />
         <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
+        <Route path="/add-vehicle" element={<AddVehicle />} />
       </Routes>
     </Router>
   );
