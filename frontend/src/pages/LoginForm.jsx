@@ -19,31 +19,48 @@ export default function LoginForm() {
     setRole('dispatcher');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      let res;
-      if (isRegister) {
-        res = await api.post('/auth/register', { username, password, role });
-      } else {
-        res = await api.post('/auth/login', { username, password });
-      }
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-      const { token, role: userRole, userId } = res.data;
-      dispatch(loginSuccess({ token, role: userRole, userId }));
+  try {
+    let res;
 
-      // ✅ Redirect by role
-      if (userRole === 'driver') {
-        navigate('/driver');
-      } 
-      else {
-        navigate('/dashboard');
-      }
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Error occurred!');
+    if (isRegister) {
+      // Registration endpoint
+      res = await api.post('/auth/register', { username, password, role });
+    } else {
+      // Login endpoint
+      res = await api.post('/auth/login', { username, password });
     }
-  };
+
+    // ✅ Extract data safely
+    const token = res.data.token;
+    const userRole = res.data.role;
+    const userId = res.data.id || res.data.userId; // fallback in case your backend returns id differently
+    const usernameFromResponse = res.data.username || res.data.user || username; 
+    // use the input username if backend doesn’t return it
+
+    // Dispatch loginSuccess to Redux
+    dispatch(loginSuccess({
+      token,
+      role: userRole,
+      userId,
+      username: usernameFromResponse
+    }));
+
+    // Redirect based on role
+    if (userRole === 'driver') {
+      navigate('/driver');
+    } else {
+      navigate('/dashboard');
+    }
+
+  } catch (err) {
+    console.error('Login/Register error:', err);
+    alert(err.response?.data?.message || 'Error occurred!');
+  }
+};
+
 
   return (
     <div style={{ maxWidth: 400, margin: '50px auto' }}>

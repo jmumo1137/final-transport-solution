@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import api from '../api/api';
-import { logout, selectUserRole, selectUserId } from '../features/auth/authSlice';
+import { logout, selectUserRole, selectUserId, selectUsername } from '../features/auth/authSlice';
 
 export default function Dashboard() {
   const [orders, setOrders] = useState([]);
@@ -17,25 +17,31 @@ export default function Dashboard() {
   const dispatch = useDispatch();
   const role = useSelector(selectUserRole);
   const userId = useSelector(selectUserId);
+  const username = useSelector(selectUsername);
 
+console.log('Logged-in username:', username);
   const activeStatuses = ['created', 'assigned', 'loaded', 'enroute', 'delivered', 'awaiting_payment', 'paid'];
   const blinkStyle = { animation: 'blink 1s infinite' };
 
   // Fetch orders
-  const fetchOrders = async () => {
-    try {
-      const res = await api.get('/api/orders');
-      let filtered = res.data;
+const fetchOrders = async () => {
+  try {
+    const res = await api.get('/api/orders');
+    let filtered = res.data;
 
-      // Role-based filtering
-      if (role === 'driver') filtered = filtered.filter(o => o.driver_id === userId);
-      if (role === 'consignee') filtered = filtered.filter(o => o.customer_name === userId);
-
-      setOrders(filtered);
-    } catch (err) {
-      console.error('fetchOrders error:', err);
+    if (role === 'driver') {
+      filtered = filtered.filter(o => o.driver_id === userId);
+    } 
+    else if (role === 'consignee') {
+      filtered = filtered.filter(o => o.customer_name === username);
     }
-  };
+
+    setOrders(filtered);
+  } catch (err) {
+    console.error('fetchOrders error:', err);
+  }
+};
+
 
   // Fetch vehicles (only for admin/dispatcher)
   const fetchVehicles = async () => {
