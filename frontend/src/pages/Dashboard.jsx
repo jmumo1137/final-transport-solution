@@ -215,31 +215,78 @@ export default function Dashboard() {
       </table>
 
       {/* Vehicles Section (admin/dispatcher only) */}
-      {role !== 'consignee' && (
-        <>
-          <h2 style={{ marginTop: 40 }}>Add Vehicle</h2>
-          <div style={{ marginBottom: 20 }}>
-            <input placeholder="Registration" value={newVehicle.reg_number} onChange={e => setNewVehicle({...newVehicle, reg_number: e.target.value})} />
-            <input placeholder="Model" value={newVehicle.model} onChange={e => setNewVehicle({...newVehicle, model: e.target.value})} />
-            <input placeholder="Odometer" type="number" value={newVehicle.current_odometer} onChange={e => setNewVehicle({...newVehicle, current_odometer: e.target.value})} />
-            <button onClick={handleAddVehicle}>Add Vehicle</button>
-          </div>
+     {role !== 'consignee' && (
+  <>
+    <h2 style={{ marginTop: 40 }}>Add Vehicle</h2>
+    <div style={{ marginBottom: 20 }}>
+      <input
+        placeholder="Registration"
+        value={newVehicle.reg_number}
+        onChange={e => setNewVehicle({ ...newVehicle, reg_number: e.target.value })}
+      />
+      <input
+        placeholder="Model"
+        value={newVehicle.model}
+        onChange={e => setNewVehicle({ ...newVehicle, model: e.target.value })}
+      />
+      <input
+        placeholder="Odometer"
+        type="number"
+        value={newVehicle.current_odometer}
+        onChange={e => setNewVehicle({ ...newVehicle, current_odometer: e.target.value })}
+      />
+      <button onClick={handleAddVehicle}>Add Vehicle</button>
+    </div>
 
-          <h2>Vehicles</h2>
-          <table border="1" cellPadding="5" style={{ width: '100%' }}>
-            <thead>
-              <tr><th>ID</th><th>Registration</th><th>Model</th><th>Odometer</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {vehiclesWithStatus.map(v => (
-                <tr key={v.id} style={{ backgroundColor: v.rowColor, cursor: v.status==='Available' ? 'default' : 'pointer', ...(v.status.toLowerCase()==='enroute'?blinkStyle:{}) }} title={v.status==='Available' ? 'Available' : `Assigned to order`}>
-                  <td>{v.id}</td><td>{v.reg_number}</td><td>{v.model}</td><td>{v.current_odometer}</td><td>{v.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+    <h2>Vehicles</h2>
+    <table border="1" cellPadding="5" style={{ width: '100%' }}>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Registration</th>
+          <th>Model</th>
+          <th>Odometer</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {vehiclesWithStatus.map(v => {
+          // Build descriptive tooltip
+          let tooltip = '';
+          if (v.status === 'Available') {
+            tooltip = 'This vehicle is available for assignment';
+          } else {
+            const assignedOrder = orders.find(o => o.vehicle_id === v.id);
+            if (assignedOrder) {
+              tooltip = `Assigned to Order #${assignedOrder.id} (${assignedOrder.status})\nPickup: ${assignedOrder.pickup}\nDestination: ${assignedOrder.destination}`;
+            } else {
+              tooltip = 'Assigned to an order';
+            }
+          }
+
+          return (
+            <tr
+              key={v.id}
+              style={{
+                backgroundColor: v.rowColor,
+                cursor: v.status === 'Available' ? 'default' : 'pointer',
+                ...(v.status.toLowerCase() === 'enroute' ? blinkStyle : {})
+              }}
+              title={tooltip}
+            >
+              <td>{v.id}</td>
+              <td>{v.reg_number}</td>
+              <td>{v.model}</td>
+              <td>{v.current_odometer}</td>
+              <td>{v.status}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </>
+)}
+
 
       {/* Assign Driver Modal (admin/dispatcher only) */}
       {assignOrderId && role !== 'consignee' && (
