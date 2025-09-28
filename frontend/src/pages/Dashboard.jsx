@@ -49,10 +49,12 @@ export default function Dashboard() {
     fetchVehicles();
   }, [role, userId]);
 
+  // Filter available vehicles
   const availableVehicles = vehicles.filter(v => {
     return !orders.some(o => o.vehicle_id === v.id && activeStatuses.includes(o.status.toLowerCase()));
   });
 
+  // Vehicle row coloring
   const getVehicleRowColor = (status) => {
     if (status === 'Available') return '#d4edda';
     if (['created', 'assigned', 'loaded', 'enroute'].includes(status.toLowerCase())) return '#ffe5b4';
@@ -69,12 +71,14 @@ export default function Dashboard() {
     };
   });
 
+  // Logout
   const handleLogout = () => {
     dispatch(logout());
     localStorage.removeItem('token');
     navigate('/login');
   };
 
+  // Order lifecycle
   const handleNextStep = async (order) => {
     try {
       let res;
@@ -129,6 +133,7 @@ export default function Dashboard() {
     setDriverSuggestions([]);
   };
 
+  // Assign driver & vehicle
   const handleAssignDriver = async () => {
     if (!driverUsername || !vehicleId) {
       alert('Driver and Vehicle are required!');
@@ -150,21 +155,19 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ Add Vehicle
+  // Add Vehicle
   const handleAddVehicle = async () => {
     const { reg_number, model, current_odometer } = newVehicle;
     if (!reg_number.trim() || !model.trim()) {
       alert('Registration and Model are required!');
       return;
     }
-
     try {
       const res = await api.post('/api/vehicles', {
         reg_number: reg_number.trim(),
         model: model.trim(),
         current_odometer: Number(current_odometer)
       });
-
       setVehicles(prev => [...prev, res.data || { id: Date.now(), reg_number, model, current_odometer }]);
       setNewVehicle({ reg_number: '', model: '', current_odometer: 0 });
       alert('Vehicle added!');
@@ -236,20 +239,31 @@ export default function Dashboard() {
         <div style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }}>
           <div style={{ background:'#fff', padding:20, borderRadius:8, width:400 }}>
             <h3>Assign Driver & Vehicle</h3>
+
             <input type="text" value={driverUsername} onChange={handleDriverChange} placeholder="Driver username" style={{ width:'100%', padding:5 }} />
-            {driverSuggestions.length>0 && (
+            {driverSuggestions.length > 0 && (
               <ul style={{ background:'#fff', border:'1px solid #ccc', margin:0, padding:0, listStyle:'none', maxHeight:120, overflowY:'auto' }}>
-                {driverSuggestions.map(d => (
-                  <li key={d.id} style={{ padding:5, cursor:'pointer' }} onClick={()=>handleSelectDriver(d.username)}>{d.username}</li>
-                ))}
+                {driverSuggestions.map(d => {
+                  const isAssigned = orders.some(o => o.driver_username === d.username && activeStatuses.includes(o.status.toLowerCase()));
+                  return (
+                    <li key={d.id}
+                        style={{ padding:5, cursor:isAssigned?'not-allowed':'pointer', color:isAssigned?'#999':'#000' }}
+                        title={isAssigned ? 'Driver is busy on another order' : 'Available'}
+                        onClick={()=>!isAssigned && handleSelectDriver(d.username)}>
+                      {d.username}
+                    </li>
+                  );
+                })}
               </ul>
             )}
+
             <select value={vehicleId} onChange={e=>setVehicleId(e.target.value)} style={{ marginTop:10, width:'100%', padding:5 }}>
               <option value="">Select Vehicle</option>
               {availableVehicles.map(v => (
                 <option key={v.id} value={v.id}>{v.reg_number} - {v.model} (Odometer: {v.current_odometer})</option>
               ))}
             </select>
+
             <div style={{ marginTop:15, display:'flex', justifyContent:'space-between' }}>
               <button onClick={handleAssignDriver}>Assign</button>
               <button onClick={()=>setAssignOrderId(null)}>Cancel</button>
