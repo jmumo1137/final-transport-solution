@@ -1,6 +1,8 @@
 const express = require('express');
 const db = require('../db'); // knex instance
 const router = express.Router();
+const { authenticateToken } = require('../middleware/authenticationToken');
+
 
 // ===================== CREATE ORDER =====================
 router.post('/', async (req, res) => {
