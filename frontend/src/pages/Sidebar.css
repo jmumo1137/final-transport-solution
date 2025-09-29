@@ -1,0 +1,56 @@
+.sidebar {
+    width: 200px;
+    background-color: #2f3542;
+    color: navajowhite;
+    height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+    transition: width 0.3s ease;
+    position: fixed;
+}
+
+.sidebar.collapsed {
+    width: 60px;
+    padding: 20px 10px;
+}
+
+.sidebar h2 {
+    margin-bottom: 20px;
+    font-size: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.sidebar .toggle-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    margin-bottom: 20px;
+}
+
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+}
+
+.sidebar ul li {
+    margin-bottom: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.sidebar ul li a {
+    color: white;
+    text-decoration: none;
+    display: block;
+}
+
+.sidebar ul li.active a {
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.sidebar ul li a:hover {
+    text-decoration: underline;
+}
