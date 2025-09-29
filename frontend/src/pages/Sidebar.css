@@ -54,3 +54,44 @@
 .sidebar ul li a:hover {
     text-decoration: underline;
 }
+/* Existing styles remain ... */
+
+.mobile-toggle {
+    display: none;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: #2f3542;
+    color: white;
+    border: none;
+    padding: 10px;
+    z-index: 1001;
+    cursor: pointer;
+}
+
+@media screen and (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: -220px;
+        top: 0;
+        height: 100%;
+        z-index: 1000;
+        transition: left 0.3s ease;
+    }
+
+    .sidebar.mobile-open {
+        left: 0;
+    }
+
+    .sidebar.collapsed {
+        width: 200px; /* collapsed disabled on mobile */
+    }
+
+    .mobile-toggle {
+        display: block;
+    }
+
+    div[style] { /* main content shift on mobile not needed */
+        margin-left: 0 !important;
+    }
+}
