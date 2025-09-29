@@ -18,13 +18,15 @@ router.post('/login', async (req, res) => {
     if (!valid) return res.status(400).json({ message: 'Incorrect password' });
 
     // Generate JWT
-    const token = jwt.sign({ userId: user.id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user.id, role: user.role, username: user.username }, SECRET_KEY, { expiresIn: '1h' });
 
     // Send token, role, and userId to frontend
     res.json({
+     
       token,
       role: user.role,
       userId: user.id,
+      username: user.username,      
     });
   } catch (err) {
     console.error(err);

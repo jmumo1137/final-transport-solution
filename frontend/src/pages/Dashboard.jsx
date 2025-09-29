@@ -23,24 +23,28 @@ console.log('Logged-in username:', username);
   const activeStatuses = ['created', 'assigned', 'loaded', 'enroute', 'delivered', 'awaiting_payment', 'paid'];
   const blinkStyle = { animation: 'blink 1s infinite' };
 
-  // Fetch orders
+
+// Fetch orders
 const fetchOrders = async () => {
   try {
     const res = await api.get('/api/orders');
-    let filtered = res.data;
+    let data = res.data;
 
-    if (role === 'driver') {
-      filtered = filtered.filter(o => o.driver_id === userId);
-    } 
-    else if (role === 'consignee') {
-      filtered = filtered.filter(o => o.customer_name === username);
+    // 🔒 Frontend safeguard
+    if (role === 'consignee') {
+      data = data.filter(o => 
+        o.customer_name?.toLowerCase() === username?.toLowerCase()
+      );
+    } else if (role === 'driver') {
+      data = data.filter(o => o.driver_id === userId);
     }
 
-    setOrders(filtered);
+    setOrders(data);
   } catch (err) {
-    console.error('fetchOrders error:', err);
+    console.error('fetchOrders error:', err.response?.data || err.message);
   }
 };
+
 
 
   // Fetch vehicles (only for admin/dispatcher)
@@ -54,10 +58,15 @@ const fetchOrders = async () => {
     }
   };
 
-  useEffect(() => {
-    fetchOrders();
+ useEffect(() => {
+  fetchOrders();
+
+  // 🚛 Only dispatchers/admins need vehicles list
+  if (['dispatcher', 'admin'].includes(role)) {
     fetchVehicles();
-  }, [role, userId]);
+  }
+}, [role, userId]);
+
 
   const handleLogout = () => {
     dispatch(logout());

@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db'); // knex instance
 const router = express.Router();
-const { authenticateToken } = require('../middleware/authenticationToken');
+const { authenticateToken }  = require('../middleware/authenticationToken');
 
 
 // ===================== CREATE ORDER =====================
@@ -49,6 +49,8 @@ router.post('/', async (req, res) => {
 // ===================== LIST ORDERS =====================
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    console.log('Decoded user in /api/orders:', req.user);
+
     let ordersQuery = db('orders');
     
     if (req.user.role === 'driver') {
@@ -60,7 +62,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const orders = await ordersQuery.select('*');
     res.json(orders);
   } catch (err) {
-    console.error('Fetch orders error:', err);
+    console.error('Fetch orders error(backend):', err);
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
