@@ -1,0 +1,41 @@
+.drivers-page {
+    padding: 20px;
+}
+
+.driver-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.driver-form input {
+    padding: 8px;
+    flex: 1;
+    min-width: 150px;
+}
+
+.driver-form button {
+    padding: 8px 12px;
+}
+
+.drivers-page table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.drivers-page th, .drivers-page td {
+    padding: 10px;
+    border: 1px solid #ccc;
+    text-align: left;
+}
+
+.drivers-page th {
+    background-color: #2f3542;
+    color: white;
+}
+
+.drivers-page button {
+    margin-right: 5px;
+    padding: 5px 10px;
+}

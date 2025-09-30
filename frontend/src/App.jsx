@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectToken } from './features/auth/authSlice';
+import { selectToken, selectUserRole } from './features/auth/authSlice';
 
 // Import pages
 import LoginForm from './pages/LoginForm';
@@ -20,6 +20,17 @@ import Assignments from './pages/Assignments';
 import Alerts from './pages/Alerts';
 import Sidebar from './pages/Sidebar';
 
+function DashboardWrapper() {
+  const role = useSelector(selectUserRole);
+
+  if (role === 'driver') {
+    // Redirect driver to their dashboard
+    return <DriverDashboard />;
+  }
+
+  // Only admin/dispatcher can see main dashboard
+  return <Dashboard />;
+}
 function App() {
   const token = useSelector(selectToken);
 
@@ -29,9 +40,9 @@ function App() {
       <div style={{ marginLeft: token ? '200px' : '0', padding: '20px' }}>
         <Routes>
           <Route path="/login" element={<LoginForm />} />
-          <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" />} />
-          <Route path="/driver" element={<DriverDashboard />} />
-          <Route path="/driver/orders" element={<DriverOrders />} />
+          <Route path="/dashboard" element={token ? <DashboardWrapper /> : <Navigate to="/login" />} />
+          <Route path="/driver" element={token ? <DriverDashboard /> : <Navigate to="/login" />} />
+          <Route path="/driver/orders" element={token ? <DriverOrders /> : <Navigate to="/login" />} />
           <Route path="/orders" element={token ? <Orders /> : <Navigate to="/login" />} />
           <Route path="/fuel/:id" element={token ? <Fuel /> : <Navigate to="/login" />} />
           <Route path="/mileage/:id" element={token ? <Mileage /> : <Navigate to="/login" />} />

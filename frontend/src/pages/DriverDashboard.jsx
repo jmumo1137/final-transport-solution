@@ -1,28 +1,43 @@
+// src/pages/DriverDashboard.jsx
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { selectUserId, selectUserRole, logout } from '../features/auth/authSlice';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
-import { logout, selectUserId, selectUserRole } from '../features/auth/authSlice';
 
 export default function DriverDashboard() {
   const [orders, setOrders] = useState([]);
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const role = useSelector(selectUserRole);
-  const userId = useSelector(selectUserId);
+  const [driverInfo, setDriverInfo] = useState(null);
 
-  const fetchDriverOrders = async () => {
+  const userId = useSelector(selectUserId);
+  const role = useSelector(selectUserRole);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  // Fetch assigned orders
+  const fetchOrders = async () => {
     try {
-      const res = await api.get(`/api/driver/orders/${userId}`);
+      const res = await api.get(`/api/driver/orders`); // ✅ fixed
       setOrders(res.data || []);
     } catch (err) {
-      console.error('fetchDriverOrders error:', err.response?.data || err.message);
+      console.error('fetchOrders error:', err.response?.data || err.message);
+    }
+  };
+
+  // Fetch driver info
+  const fetchDriverInfo = async () => {
+    try {
+      const res = await api.get(`/api/drivers/${userId}`);
+      setDriverInfo(res.data || {});
+    } catch (err) {
+      console.error('fetchDriverInfo error:', err.response?.data || err.message);
     }
   };
 
   useEffect(() => {
-    if (role === 'driver') {
-      fetchDriverOrders();
+    if (role === 'driver' && userId) {
+      fetchOrders();
+      fetchDriverInfo();
     }
   }, [role, userId]);
 
@@ -32,68 +47,40 @@ export default function DriverDashboard() {
     navigate('/login');
   };
 
-  // 🔹 Driver lifecycle actions
-  const handleDriverAction = async (order) => {
+  const handleMarkDelivered = async (orderId) => {
     try {
-      let res;
-      switch (order.status.toLowerCase()) {
-        case 'assigned':
-          res = await api.post(`/api/orders/${order.id}/loaded`);
-          break;
-        case 'loaded':
-          res = await api.post(`/api/orders/${order.id}/enroute`, { start_odometer: 0 });
-          break;
-        case 'enroute':
-          res = await api.post(`/api/orders/${order.id}/delivered`);
-          break;
-        default:
-          alert('No driver action available for this status.');
-          return;
-      }
-      if (res?.data?.ok || res?.data) {
-        fetchDriverOrders();
-      }
+      await api.post(`/api/orders/${orderId}/delivered`);
+      fetchOrders();
     } catch (err) {
-      console.error('Driver action error:', err.response?.data || err.message);
-      alert(err.response?.data?.error || 'Failed to update order.');
+      console.error('Mark Delivered error:', err.response?.data || err.message);
     }
   };
 
-  const getDriverActionLabel = (status) => {
-    switch (status.toLowerCase()) {
-      case 'assigned': return 'Confirm Loaded';
-      case 'loaded': return 'Start Trip';
-      case 'enroute': return 'Mark Delivered';
-      default: return null;
-    }
+  const renderInsuranceStatus = () => {
+    if (!driverInfo?.license_expiry_date) return 'No license info';
+    const today = new Date();
+    const expiry = new Date(driverInfo.license_expiry_date);
+    const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+    return diffDays <= 30
+      ? `⚠ License expiring in ${diffDays} day(s)!`
+      : `Valid until ${expiry.toLocaleDateString()}`;
   };
-
-  // 🔹 Button availability rules
-  const canLogFuel = (status) => ['loaded', 'enroute'].includes(status.toLowerCase());
-  const canLogMileage = (status) => ['enroute', 'delivered'].includes(status.toLowerCase());
-  const canUploadPOD = (status) => status.toLowerCase() === 'enroute';
 
   return (
     <div style={{ padding: 20 }}>
       <h1>Driver Dashboard</h1>
-      <p>Welcome, Driver</p>
-      <button onClick={handleLogout} style={{ background: 'red', color: 'white' }}>
+      <p>Welcome, {driverInfo?.full_name || 'Driver'}</p>
+      <p>Insurance Status: {renderInsuranceStatus()}</p>
+
+      <button onClick={handleLogout} style={{ background: 'red', color: 'white', marginBottom: 20 }}>
         Logout
       </button>
 
-      <div style={{ marginTop: 20 }}>
-        <button
-          onClick={() => navigate('/driver/orders')}
-          style={{ background: '#007bff', color: 'white', padding: '6px 12px', borderRadius: 4 }}
-        >
-          View Assigned Orders
-        </button>
-      </div>
-
+      <h3>View Assigned Orders</h3>
       {orders.length === 0 ? (
-        <p style={{ marginTop: 20 }}>No orders assigned yet.</p>
+        <p>No orders assigned yet.</p>
       ) : (
-        <table border="1" cellPadding="5" style={{ marginTop: 20, width: '100%' }}>
+        <table border="1" cellPadding="5" style={{ width: '100%' }}>
           <thead>
             <tr>
               <th>ID</th>
@@ -101,6 +88,9 @@ export default function DriverDashboard() {
               <th>Pickup</th>
               <th>Destination</th>
               <th>Status</th>
+              <th>Qty Loaded</th>
+              <th>Qty Delivered</th>
+              <th>Expenses</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -112,42 +102,25 @@ export default function DriverDashboard() {
                 <td>{order.pickup}</td>
                 <td>{order.destination}</td>
                 <td>{order.status}</td>
+                <td>{order.quantity_loaded || 0}</td>
+                <td>{order.quantity_delivered || 0}</td>
+                <td>{order.expenses ? `$${order.expenses}` : '-'}</td>
                 <td>
-                  {/*  Driver lifecycle button */}
-                  {getDriverActionLabel(order.status) && (
-                    <button
-                      onClick={() => handleDriverAction(order)}
-                      style={{ marginRight: 5, background: 'green', color: 'white' }}
-                    >
-                      {getDriverActionLabel(order.status)}
-                    </button>
-                  )}
-
-                  {/*  Fuel logging */}
-                  <button
-                    onClick={() => navigate(`/fuel/${order.id}`)}
-                    disabled={!canLogFuel(order.status)}
-                  >
-                    Log Fuel
-                  </button>
-
-                  {/*  Mileage logging */}
-                  <button
-                    onClick={() => navigate(`/mileage/${order.id}`)}
-                    style={{ marginLeft: 5 }}
-                    disabled={!canLogMileage(order.status)}
-                  >
+                  <button onClick={() => navigate(`/fuel/${order.id}`)}>Log Fuel</button>
+                  <button onClick={() => navigate(`/mileage/${order.id}`)} style={{ marginLeft: 5 }}>
                     Log Mileage
                   </button>
-
-                  {/*  POD upload */}
-                  <button
-                    onClick={() => navigate(`/documents/${order.id}`)}
-                    style={{ marginLeft: 5 }}
-                    disabled={!canUploadPOD(order.status)}
-                  >
+                  <button onClick={() => navigate(`/expenses/${order.id}`)} style={{ marginLeft: 5 }}>
+                    Log Expenses
+                  </button>
+                  <button onClick={() => navigate(`/documents/${order.id}`)} style={{ marginLeft: 5 }}>
                     Upload POD
                   </button>
+                  {order.status === 'enroute' && (
+                    <button onClick={() => handleMarkDelivered(order.id)} style={{ marginLeft: 5 }}>
+                      Mark Delivered
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
