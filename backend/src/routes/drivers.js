@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const multer = require('multer');
 const path = require('path');
+const { authenticateToken } = require('../middleware/auth');
 
 // -------------------- Multer File Upload Setup --------------------
 const storage = multer.diskStorage({

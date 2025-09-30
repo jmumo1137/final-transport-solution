@@ -112,6 +112,32 @@ router.post('/:orderId/assign', async (req, res) => {
     res.status(500).json({ error: 'Assign failed' });
   }
 });
+// Confirm loading with quantity
+router.post('/:id/load', authenticateToken, async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { qty_loaded } = req.body;
+
+    if (!qty_loaded || qty_loaded <= 0) {
+      return res.status(400).json({ error: 'Quantity loaded is required' });
+    }
+
+    // Update order
+    await db('orders')
+      .where({ id: orderId })
+      .update({
+        quantity_loaded: qty_loaded,
+        status: 'loaded',
+        loaded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    res.json({ success: true, message: 'Order marked as loaded' });
+  } catch (err) {
+    console.error('Load order error:', err);
+    res.status(500).json({ error: 'Failed to confirm loading' });
+  }
+});
 
 // ===================== MARK LOADED =====================
 router.post('/:orderId/loaded', async (req, res) => {

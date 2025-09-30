@@ -8,6 +8,8 @@ import api from '../api/api';
 export default function DriverDashboard() {
   const [orders, setOrders] = useState([]);
   const [driverInfo, setDriverInfo] = useState(null);
+  const [activeOrderId, setActiveOrderId] = useState(null);
+  const [qtyLoaded, setQtyLoaded] = useState('');
 
   const userId = useSelector(selectUserId);
   const role = useSelector(selectUserRole);
@@ -17,7 +19,7 @@ export default function DriverDashboard() {
   // Fetch assigned orders
   const fetchOrders = async () => {
     try {
-      const res = await api.get(`/api/driver/orders`); // ✅ fixed
+      const res = await api.get(`/api/driver/orders`);
       setOrders(res.data || []);
     } catch (err) {
       console.error('fetchOrders error:', err.response?.data || err.message);
@@ -27,7 +29,7 @@ export default function DriverDashboard() {
   // Fetch driver info
   const fetchDriverInfo = async () => {
     try {
-      const res = await api.get(`/api/drivers/${userId}`);
+      const res = await api.get(`/api/drivers`);
       setDriverInfo(res.data || {});
     } catch (err) {
       console.error('fetchDriverInfo error:', err.response?.data || err.message);
@@ -53,6 +55,22 @@ export default function DriverDashboard() {
       fetchOrders();
     } catch (err) {
       console.error('Mark Delivered error:', err.response?.data || err.message);
+    }
+  };
+
+  const handleConfirmLoad = async (orderId) => {
+    try {
+      if (!qtyLoaded || qtyLoaded <= 0) {
+        alert('Please enter a valid quantity loaded');
+        return;
+      }
+      await api.post(`/api/orders/${orderId}/load`, { qty_loaded: qtyLoaded });
+      setActiveOrderId(null);
+      setQtyLoaded('');
+      fetchOrders();
+    } catch (err) {
+      console.error('Confirm Load error:', err.response?.data || err.message);
+      alert('Failed to confirm loading');
     }
   };
 
@@ -116,6 +134,39 @@ export default function DriverDashboard() {
                   <button onClick={() => navigate(`/documents/${order.id}`)} style={{ marginLeft: 5 }}>
                     Upload POD
                   </button>
+                  {order.status === 'assigned' && (
+                    <>
+                      {activeOrderId === order.id ? (
+                        <div style={{ marginTop: 5 }}>
+                          <input
+                            type="number"
+                            placeholder="Qty Loaded"
+                            value={qtyLoaded}
+                            onChange={(e) => setQtyLoaded(e.target.value)}
+                          />
+                          <button
+                            onClick={() => handleConfirmLoad(order.id)}
+                            style={{ marginLeft: 5 }}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setActiveOrderId(null)}
+                            style={{ marginLeft: 5 }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setActiveOrderId(order.id)}
+                          style={{ marginLeft: 5 }}
+                        >
+                          Confirm Loading
+                        </button>
+                      )}
+                    </>
+                  )}
                   {order.status === 'enroute' && (
                     <button onClick={() => handleMarkDelivered(order.id)} style={{ marginLeft: 5 }}>
                       Mark Delivered
