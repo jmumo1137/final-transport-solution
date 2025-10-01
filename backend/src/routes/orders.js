@@ -162,6 +162,91 @@ router.post('/:orderId/loaded', async (req, res) => {
     res.status(500).json({ error: 'Failed to mark loaded' });
   }
 });
+// Log start odometer
+router.post('/:id/mileage/start', authenticateToken, async (req, res) => {
+  try {
+    const { start_odometer } = req.body;
+    const orderId = req.params.id;
+
+    if (!start_odometer) {
+      return res.status(400).json({ message: 'Start odometer is required' });
+    }
+
+    // Update order with start odometer
+    const result = await pool.query(
+      'UPDATE orders SET start_odometer = $1, status = $2 WHERE id = $3 RETURNING *',
+      [start_odometer, 'En route', orderId]
+    );
+
+    res.json({ message: 'Start odometer logged, trip started', order: result.rows[0] });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+// Log end odometer
+router.post('/:id/mileage/end', authenticateToken, async (req, res) => {
+  try {
+    const { end_odometer } = req.body;
+    const orderId = req.params.id;
+
+    if (!end_odometer) {
+      return res.status(400).json({ message: 'End odometer is required' });
+    }
+
+    // Fetch order for validation
+    const orderCheck = await pool.query('SELECT start_odometer FROM orders WHERE id = $1', [orderId]);
+    if (orderCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const { start_odometer } = orderCheck.rows[0];
+    if (end_odometer < start_odometer) {
+      return res.status(400).json({ message: 'End odometer cannot be less than start odometer' });
+    }
+
+    const result = await pool.query(
+      'UPDATE orders SET end_odometer = $1, status = $2 WHERE id = $3 RETURNING *',
+      [end_odometer, 'Delivered', orderId]
+    );
+
+    res.json({ message: 'End odometer logged, trip completed', order: result.rows[0] });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+  // Start Trip route
+router.post('/:id/start', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_odometer } = req.body;
+
+    if (!start_odometer || start_odometer <= 0) {
+      return res.status(400).json({ error: 'Start odometer is required to start trip' });
+    }
+
+    const updated = await db('orders')
+      .where({ id })
+      .update({
+        status: 'enroute',
+        start_odometer,
+        updated_at: new Date().toISOString(),
+      })
+      .returning('*');
+
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json({ message: 'Trip started', order: updated[0] });
+  } catch (err) {
+    console.error('Start Trip error:', err);
+    res.status(500).json({ error: 'Failed to start trip' });
+  }
+});
+
 // ===================== MARK DELIVERED =====================
 router.post('/:orderId/delivered', async (req, res) => {
   const { orderId } = req.params;

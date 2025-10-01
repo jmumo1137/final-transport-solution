@@ -1,21 +1,28 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectUserRole } from '../features/auth/authSlice';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectUserRole, logout } from '../features/auth/authSlice';
 import { 
     FaTachometerAlt, FaTruck, FaTasks, FaBell, 
-    FaClipboardList, FaUser, FaTruckMoving, FaBars 
+    FaClipboardList, FaUser, FaTruckMoving, FaBars, FaSignOutAlt
 } from 'react-icons/fa';
 import './Sidebar.css';
 
 export default function Sidebar() {
     const location = useLocation();
+    const navigate = useNavigate();
+    const dispatch = useDispatch();
     const role = useSelector(selectUserRole);
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
 
     const toggleSidebar = () => setCollapsed(!collapsed);
     const toggleMobileSidebar = () => setMobileOpen(!mobileOpen);
+
+    const handleLogout = () => {
+        dispatch(logout());
+        navigate('/login');
+    };
 
     const menuItems = [
         { name: 'Dashboard', path: '/dashboard', icon: <FaTachometerAlt />, roles: ['admin','dispatcher','operations','driver','customer','accounts'] },
@@ -39,25 +46,32 @@ export default function Sidebar() {
                 <button className="toggle-btn" onClick={toggleSidebar}>
                     {collapsed ? '➡️' : '⬅️'}
                 </button>
-                <nav>
+
+                <nav className="menu">
                     <ul>
                         {menuItems
                             .filter(item => item.roles.includes(role))
                             .map(item => (
-                            <li 
-                                key={item.path} 
-                                className={location.pathname === item.path ? 'active' : ''}
-                                title={collapsed ? item.name : ''}
-                                onClick={() => setMobileOpen(false)} // close on mobile after click
-                            >
-                                <Link to={item.path}>
-                                    <span className="icon">{item.icon}</span>
-                                    {!collapsed && <span className="text">{item.name}</span>}
-                                </Link>
-                            </li>
+                                <li 
+                                    key={item.path} 
+                                    className={location.pathname === item.path ? 'active' : ''} 
+                                    title={collapsed ? item.name : ''} 
+                                    onClick={() => setMobileOpen(false)}
+                                >
+                                    <Link to={item.path}>
+                                        <span className="icon">{item.icon}</span>
+                                        {!collapsed && <span className="text">{item.name}</span>}
+                                    </Link>
+                                </li>
                         ))}
                     </ul>
                 </nav>
+
+                {/* Logout at bottom */}
+                <div className="logout-section" onClick={handleLogout}>
+                    <span className="icon"><FaSignOutAlt /></span>
+                    {!collapsed && <span className="text">Logout</span>}
+                </div>
             </div>
         </>
     );

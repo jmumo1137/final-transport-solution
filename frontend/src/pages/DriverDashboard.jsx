@@ -1,183 +1,129 @@
-// src/pages/DriverDashboard.jsx
-import React, { useEffect, useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { selectUserId, selectUserRole, logout } from '../features/auth/authSlice';
-import { useNavigate } from 'react-router-dom';
-import api from '../api/api';
+import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import api from "../api/api";
+import { selectUserId, selectUserRole } from "../features/auth/authSlice";
 
 export default function DriverDashboard() {
-  const [orders, setOrders] = useState([]);
   const [driverInfo, setDriverInfo] = useState(null);
-  const [activeOrderId, setActiveOrderId] = useState(null);
-  const [qtyLoaded, setQtyLoaded] = useState('');
-
-  const userId = useSelector(selectUserId);
+  const [files, setFiles] = useState({});
   const role = useSelector(selectUserRole);
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-
-  // Fetch assigned orders
-  const fetchOrders = async () => {
-    try {
-      const res = await api.get(`/api/driver/orders`);
-      setOrders(res.data || []);
-    } catch (err) {
-      console.error('fetchOrders error:', err.response?.data || err.message);
-    }
-  };
+  const userId = useSelector(selectUserId);
 
   // Fetch driver info
   const fetchDriverInfo = async () => {
     try {
-      const res = await api.get(`/api/drivers`);
-      setDriverInfo(res.data || {});
+      const res = await api.get(`/api/drivers/${userId}`);
+      setDriverInfo(res.data);
     } catch (err) {
-      console.error('fetchDriverInfo error:', err.response?.data || err.message);
+      console.error("fetchDriverInfo error:", err.response?.data || err.message);
     }
   };
 
   useEffect(() => {
-    if (role === 'driver' && userId) {
-      fetchOrders();
-      fetchDriverInfo();
-    }
+    if (role === "driver") fetchDriverInfo();
   }, [role, userId]);
 
-  const handleLogout = () => {
-    dispatch(logout());
-    localStorage.removeItem('token');
-    navigate('/login');
+  // Handle file selection
+  const handleFileChange = (e) => {
+    const { name, files: selectedFiles } = e.target;
+    setFiles(prev => ({ ...prev, [name]: selectedFiles[0] }));
   };
 
-  const handleMarkDelivered = async (orderId) => {
+  // Upload handler
+  const handleUpload = async (docType) => {
+    if (!files[docType]) return;
+
+    const formData = new FormData();
+    formData.append(docType, files[docType]);
+
     try {
-      await api.post(`/api/orders/${orderId}/delivered`);
-      fetchOrders();
+      const res = await api.put(`/api/drivers/${userId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      alert(`${docType} uploaded successfully`);
+      setFiles(prev => ({ ...prev, [docType]: null }));
+      setDriverInfo(res.data); // instantly update frontend without fetch
     } catch (err) {
-      console.error('Mark Delivered error:', err.response?.data || err.message);
+      console.error("Upload error:", err.response?.data || err.message);
+      alert("Upload failed");
     }
   };
 
-  const handleConfirmLoad = async (orderId) => {
-    try {
-      if (!qtyLoaded || qtyLoaded <= 0) {
-        alert('Please enter a valid quantity loaded');
-        return;
-      }
-      await api.post(`/api/orders/${orderId}/load`, { qty_loaded: qtyLoaded });
-      setActiveOrderId(null);
-      setQtyLoaded('');
-      fetchOrders();
-    } catch (err) {
-      console.error('Confirm Load error:', err.response?.data || err.message);
-      alert('Failed to confirm loading');
-    }
-  };
-
-  const renderInsuranceStatus = () => {
-    if (!driverInfo?.license_expiry_date) return 'No license info';
+  // Expiry/status checker
+  const checkExpiry = (dateStr) => {
+    if (!dateStr) return { status: "Missing", color: "gray" };
     const today = new Date();
-    const expiry = new Date(driverInfo.license_expiry_date);
+    const expiry = new Date(dateStr);
     const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
-    return diffDays <= 30
-      ? `⚠ License expiring in ${diffDays} day(s)!`
-      : `Valid until ${expiry.toLocaleDateString()}`;
+    if (diffDays < 0) return { status: "Expired", color: "red" };
+    if (diffDays <= 30) return { status: "Expiring Soon", color: "orange" };
+    return { status: "Valid", color: "green" };
   };
 
-  return (
-    <div style={{ padding: 20 }}>
-      <h1>Driver Dashboard</h1>
-      <p>Welcome, {driverInfo?.full_name || 'Driver'}</p>
-      <p>Insurance Status: {renderInsuranceStatus()}</p>
-
-      <button onClick={handleLogout} style={{ background: 'red', color: 'white', marginBottom: 20 }}>
-        Logout
-      </button>
-
-      <h3>View Assigned Orders</h3>
-      {orders.length === 0 ? (
-        <p>No orders assigned yet.</p>
-      ) : (
-        <table border="1" cellPadding="5" style={{ width: '100%' }}>
+  // Render Driver Info / Uploads
+  const renderDriverTab = () => (
+    <div>
+      <h2>Driver Info & Compliance</h2>
+      {driverInfo ? (
+        <table border="1" cellPadding="5" style={{ width: "100%", marginTop: 10 }}>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Customer</th>
-              <th>Pickup</th>
-              <th>Destination</th>
+              <th>Document</th>
+              <th>File</th>
+              <th>Expiry</th>
+              <th>Upload</th>
               <th>Status</th>
-              <th>Qty Loaded</th>
-              <th>Qty Delivered</th>
-              <th>Expenses</th>
-              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {orders.map(order => (
-              <tr key={order.id}>
-                <td>{order.id}</td>
-                <td>{order.customer_name}</td>
-                <td>{order.pickup}</td>
-                <td>{order.destination}</td>
-                <td>{order.status}</td>
-                <td>{order.quantity_loaded || 0}</td>
-                <td>{order.quantity_delivered || 0}</td>
-                <td>{order.expenses ? `$${order.expenses}` : '-'}</td>
-                <td>
-                  <button onClick={() => navigate(`/fuel/${order.id}`)}>Log Fuel</button>
-                  <button onClick={() => navigate(`/mileage/${order.id}`)} style={{ marginLeft: 5 }}>
-                    Log Mileage
-                  </button>
-                  <button onClick={() => navigate(`/expenses/${order.id}`)} style={{ marginLeft: 5 }}>
-                    Log Expenses
-                  </button>
-                  <button onClick={() => navigate(`/documents/${order.id}`)} style={{ marginLeft: 5 }}>
-                    Upload POD
-                  </button>
-                  {order.status === 'assigned' && (
-                    <>
-                      {activeOrderId === order.id ? (
-                        <div style={{ marginTop: 5 }}>
-                          <input
-                            type="number"
-                            placeholder="Qty Loaded"
-                            value={qtyLoaded}
-                            onChange={(e) => setQtyLoaded(e.target.value)}
-                          />
-                          <button
-                            onClick={() => handleConfirmLoad(order.id)}
-                            style={{ marginLeft: 5 }}
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            onClick={() => setActiveOrderId(null)}
-                            style={{ marginLeft: 5 }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setActiveOrderId(order.id)}
-                          style={{ marginLeft: 5 }}
-                        >
-                          Confirm Loading
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {order.status === 'enroute' && (
-                    <button onClick={() => handleMarkDelivered(order.id)} style={{ marginLeft: 5 }}>
-                      Mark Delivered
+            {[
+              { key: "license_file", label: "License", expiry: "license_expiry_date" },
+              { key: "passport_photo", label: "Passport Photo", expiry: null },
+              { key: "good_conduct_certificate", label: "Good Conduct Certificate", expiry: null },
+              { key: "port_pass", label: "Port Pass", expiry: null },
+            ].map(doc => {
+              const fileName = driverInfo[doc.key];
+              const expiryDate = doc.expiry ? driverInfo[doc.expiry] : null;
+              const { status, color } = checkExpiry(expiryDate);
+
+              return (
+                <tr key={doc.key}>
+                  <td>{doc.label}</td>
+                  <td>
+                    {fileName ? (
+                      <a href={`/uploads/driver/${fileName}`} target="_blank" rel="noopener noreferrer">
+                        {fileName}
+                      </a>
+                    ) : "Not uploaded"}
+                  </td>
+                  <td>{expiryDate || "N/A"}</td>
+                  <td>
+                    <input type="file" name={doc.key} onChange={handleFileChange} />
+                    <button
+                      onClick={() => handleUpload(doc.key)}
+                      disabled={!files[doc.key]}
+                      style={{ marginLeft: 5 }}
+                    >
+                      Upload
                     </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td style={{ color }}>{status}</td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td colSpan="5">
+                <strong>Username: </strong> {driverInfo.username}
+              </td>
+            </tr>
           </tbody>
         </table>
+      ) : (
+        <p>No driver info found</p>
       )}
     </div>
   );
+
+  return <div style={{ padding: 20 }}>{role === "driver" && renderDriverTab()}</div>;
 }

@@ -54,6 +54,20 @@
 .sidebar ul li a:hover {
     text-decoration: underline;
 }
+.logout-section {
+    margin-top: auto;
+    padding: 10px 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: #f44336;
+    font-weight: bold;
+}
+
+.logout-section:hover {
+    background-color: #fdd;
+}
+
 /* Existing styles remain ... */
 
 .mobile-toggle {

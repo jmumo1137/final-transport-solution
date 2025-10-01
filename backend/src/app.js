@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+const multer = require('multer');
 
 const ordersRouter = require('./routes/orders');
 const usersRouter = require('./routes/users');
@@ -13,21 +14,34 @@ const paymentsRouter = require('./routes/payments');
 const authRouter = require('./routes/auth');
 const driverOrdersRouter = require('./routes/DriverOrders');
 const driversRouter = require('./routes/drivers');
-
+const alertsRouter = require('./routes/alerts');
 
 const app = express();
 
-// Enable CORS for frontend
+// ---------------- Multer setup ----------------
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, 'uploads/driver')); // make sure folder exists
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+const upload = multer({ storage });
+
+// ---------------- Middleware ----------------
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads/driver', express.static(path.join(__dirname, 'uploads/driver')));
 
-// Mount routers
-app.use('/auth', authRouter);            // /auth/login, /auth/register
-app.use('/api/orders', ordersRouter);    // all order routes
-app.use('/users', usersRouter);          // driver search
+// ---------------- Mount Routers ----------------
+app.use('/auth', authRouter);
+app.use('/api/orders', ordersRouter);
+app.use('/users', usersRouter);
 app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/fuel', fuelRouter);
 app.use('/api/mileage', mileageRouter);
@@ -35,8 +49,9 @@ app.use('/api/documents', documentsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/driver/orders', driverOrdersRouter);
 app.use('/api/drivers', driversRouter);
+app.use('/api/alerts', alertsRouter);
 
-// Webhook endpoint
+// ---------------- Webhook ----------------
 app.post('/api/webhook/payment', async (req, res) => {
   const { order_id, status } = req.body;
   try {
