@@ -1,40 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const { authenticateToken } = require('../middleware/auth');
+const { trailerUpload } = require('../config/uploadConfig');
+const trailersController = require('../controllers/trailersController');
 
-// Get all trailers
-router.get('/', (req, res) => {
-    try {
-        const trailers = db.prepare('SELECT * FROM trailers').all();
-        res.json(trailers);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+// GET all trailers
+router.get('/', authenticateToken, trailersController.getTrailers);
 
-// Add a new trailer
-router.post('/', (req, res) => {
-    const { plate_number, insurance_expiry_date, comesa_number } = req.body;
-    try {
-        const stmt = db.prepare(`INSERT INTO trailers (plate_number, insurance_expiry_date, comesa_number) VALUES (?, ?, ?)`);
-        const info = stmt.run(plate_number, insurance_expiry_date, comesa_number);
-        res.json({ id: info.lastInsertRowid });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+router.get('/available', authenticateToken, trailersController.getAvailableTrailers);
 
-// Update trailer
-router.put('/:id', (req, res) => {
-    const { id } = req.params;
-    const { plate_number, insurance_expiry_date, comesa_number } = req.body;
-    try {
-        db.prepare(`UPDATE trailers SET plate_number=?, insurance_expiry_date=?, comesa_number=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-          .run(plate_number, insurance_expiry_date, comesa_number, id);
-        res.json({ updated: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+// POST add trailer with file uploads
+router.post(
+  '/',
+  authenticateToken,
+  trailerUpload.fields([
+    { name: 'insurance_file', maxCount: 1 },
+    { name: 'inspection_file', maxCount: 1 },
+  ]),
+  trailersController.addTrailer
+);
 
 module.exports = router;

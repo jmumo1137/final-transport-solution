@@ -1,27 +1,25 @@
+// backend/src/routes/driversRoutes.js
 const express = require('express');
 const router = express.Router();
 const driversController = require('../controllers/driversController');
-const multer = require('multer');
-const path = require('path');
+const { driverUpload } = require('../config/uploadConfig');
 
-// Multer setup for single file
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, '../uploads/driver');
-    fs.mkdirSync(uploadPath, { recursive: true }); // ensure folder exists
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage });
+// GET all drivers (for OrdersList dropdown)
+router.get('/drivers', driversController.getAllDrivers);
 
-// Routes
+// GET single driver
 router.get('/:id', driversController.getDriver);
 
-// Single file upload or license number update
-router.put('/:id', upload.single('file'), driversController.updateDriver);
+// ✅ Allow multiple named fields for driver document uploads
+router.put(
+  '/:id',
+  driverUpload.fields([
+    { name: 'license_file', maxCount: 1 },
+    { name: 'passport_photo', maxCount: 1 },
+    { name: 'good_conduct_certificate', maxCount: 1 },
+    { name: 'port_pass', maxCount: 1 },
+  ]),
+  driversController.updateDriver
+);
 
 module.exports = router;

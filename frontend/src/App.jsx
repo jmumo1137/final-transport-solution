@@ -6,7 +6,8 @@ import { selectToken, selectUserRole } from './features/auth/authSlice';
 // Import pages
 import LoginForm from './pages/LoginForm';
 import Dashboard from './pages/Dashboard';
-import Orders from './pages/Orders';
+import CreateOrder from './pages/CreateOrder';
+import OrdersList from './pages/OrdersList';
 import Fuel from './pages/Fuel';
 import Mileage from './pages/Mileage';
 import Documents from './pages/Documents';
@@ -43,7 +44,8 @@ function App() {
           <Route path="/dashboard" element={token ? <DashboardWrapper /> : <Navigate to="/login" />} />
           <Route path="/driver" element={token ? <DriverDashboard /> : <Navigate to="/login" />} />
           <Route path="/driver/orders" element={token ? <DriverOrders /> : <Navigate to="/login" />} />
-          <Route path="/orders" element={token ? <Orders /> : <Navigate to="/login" />} />
+          <Route path="/orders" element={token ? <OrdersList /> : <Navigate to="/login" />} />
+          <Route path="/orders/create" element={token ? <CreateOrder /> : <Navigate to="/login" />} />
           <Route path="/fuel/:id" element={token ? <Fuel /> : <Navigate to="/login" />} />
           <Route path="/mileage/:id" element={token ? <Mileage /> : <Navigate to="/login" />} />
           <Route path="/documents/:id" element={token ? <Documents /> : <Navigate to="/login" />} />

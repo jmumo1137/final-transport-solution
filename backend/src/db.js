@@ -1,21 +1,40 @@
 const knex = require('knex');
 
-const db = knex({
-  client: 'sqlite3',
-  connection: {
-    filename: './data/transport.db', // your DB file
-  },
-  useNullAsDefault: true,
-  pool: {
-    min: 1,
-    max: 1, // serialize all writes
-    afterCreate: (conn, done) => {
-      // Wait up to 5 seconds if DB is busy
-      conn.run('PRAGMA busy_timeout = 5000', done);
-      // Optional: enforce foreign keys
-      conn.run('PRAGMA foreign_keys = ON');
+const env = process.env.NODE_ENV || 'development';
+
+const dbConfig = {
+  development: {
+    client: 'sqlite3',
+    connection: {
+      filename: './data/transport.db',
+    },
+    useNullAsDefault: true,
+    pool: {
+      min: 1,
+      max: 1,
+      afterCreate: (conn, done) => {
+        conn.run('PRAGMA busy_timeout = 5000', done);
+        conn.run('PRAGMA foreign_keys = ON');
+      },
     },
   },
-});
+  test: {
+    client: 'sqlite3',
+    connection: {
+      filename: './data/transport_test.db', // separate test DB
+    },
+    useNullAsDefault: true,
+    pool: {
+      min: 1,
+      max: 1,
+      afterCreate: (conn, done) => {
+        conn.run('PRAGMA busy_timeout = 5000', done);
+        conn.run('PRAGMA foreign_keys = ON');
+      },
+    },
+  },
+};
+
+const db = knex(dbConfig[env]);
 
 module.exports = db;

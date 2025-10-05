@@ -1,0 +1,216 @@
+{
+  "info": {
+    "name": "Transport Portal API",
+    "_postman_id": "transport-portal-collection",
+    "description": "Postman collection for Transport Portal backend testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": { "raw": "http://localhost:5000/auth/login", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["auth","login"] }
+      }
+    },
+
+    {
+      "name": "Drivers",
+      "item": [
+        {
+          "name": "Create Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"John Doe\",\n  \"username\": \"johndriver\",\n  \"license_number\": \"KAA12345\",\n  \"license_expiry_date\": \"2026-12-31\"\n}"
+            },
+            "url": { "raw": "http://localhost:5000/api/drivers", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","drivers"] }
+          }
+        },
+        {
+          "name": "Get All Drivers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "http://localhost:5000/api/drivers", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","drivers"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Trucks",
+      "item": [
+        {
+          "name": "Create Truck",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate_number\": \"KCD123X\",\n  \"insurance_expiry_date\": \"2026-01-01\"\n}"
+            },
+            "url": { "raw": "http://localhost:5000/api/trucks", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","trucks"] }
+          }
+        },
+        {
+          "name": "Get All Trucks",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "http://localhost:5000/api/trucks", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","trucks"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Trailers",
+      "item": [
+        {
+          "name": "Create Trailer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate_number\": \"T5678\",\n  \"comesa_expiry_date\": \"2027-05-20\"\n}"
+            },
+            "url": { "raw": "http://localhost:5000/api/trailers", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","trailers"] }
+          }
+        },
+        {
+          "name": "Get All Trailers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": { "raw": "http://localhost:5000/api/trailers", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","trailers"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origin\": \"Mombasa Port\",\n  \"destination\": \"Nairobi\"\n}"
+            },
+            "url": { "raw": "http://localhost:5000/api/orders", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders"] }
+          }
+        },
+        {
+          "name": "Assign Driver & Vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": 1,\n  \"truck_id\": 1,\n  \"trailer_id\": 1\n}"
+            },
+            "url": { "raw": "http://localhost:5000/api/orders/{{order_id}}/assign", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders","{{order_id}}","assign"] }
+          }
+        },
+        {
+          "name": "Mark Loaded",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/orders/{{order_id}}/loaded", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders","{{order_id}}","loaded"] }
+          }
+        },
+        {
+          "name": "Mark Enroute",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"start_odometer\": 1000\n}" },
+            "url": { "raw": "http://localhost:5000/api/orders/{{order_id}}/enroute", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders","{{order_id}}","enroute"] }
+          }
+        },
+        {
+          "name": "Mark Delivered",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"end_odometer\": 1200,\n  \"diesel_liters\": 50,\n  \"diesel_price\": 200\n}" },
+            "url": { "raw": "http://localhost:5000/api/orders/{{order_id}}/delivered", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders","{{order_id}}","delivered"] }
+          }
+        },
+        {
+          "name": "Mark Awaiting Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_jwt_token}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/orders/{{order_id}}/awaiting-payment", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders","{{order_id}}","awaiting-payment"] }
+          }
+        },
+        {
+          "name": "Mark Paid",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_jwt_token}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/orders/{{order_id}}/paid", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders","{{order_id}}","paid"] }
+          }
+        },
+        {
+          "name": "Close Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_jwt_token}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/orders/{{order_id}}/close", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","orders","{{order_id}}","close"] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "jwt_token", "value": "" },
+    { "key": "admin_jwt_token", "value": "" },
+    { "key": "order_id", "value": "" }
+  ]
+}

@@ -2,8 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
-const multer = require('multer');
 
+// Routers
 const ordersRouter = require('./routes/orders');
 const usersRouter = require('./routes/users');
 const vehiclesRouter = require('./routes/vehicles');
@@ -15,33 +15,27 @@ const authRouter = require('./routes/auth');
 const driverOrdersRouter = require('./routes/DriverOrders');
 const driversRouter = require('./routes/drivers');
 const alertsRouter = require('./routes/alerts');
+const trucksRouter = require('./routes/trucks');
+const trailersRouter = require('./routes/trailers');
+const truckTrailerAssignmentsRoutes = require('./routes/truckTrailerAssignments');
+
 
 const app = express();
-
-// ---------------- Multer setup ----------------
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, 'uploads/driver')); // make sure folder exists
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage });
 
 // ---------------- Middleware ----------------
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Serve uploaded files
+// ---------------- Serve uploaded files ----------------
 app.use('/uploads/driver', express.static(path.join(__dirname, 'uploads/driver')));
+app.use('/uploads/trucks', express.static(path.join(__dirname, 'uploads/trucks')));
+app.use('/uploads/trailers', express.static(path.join(__dirname, 'uploads/trailers')));
 
 // ---------------- Mount Routers ----------------
 app.use('/auth', authRouter);
 app.use('/api/orders', ordersRouter);
-app.use('/users', usersRouter);
+app.use('/api/users', usersRouter);
 app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/fuel', fuelRouter);
 app.use('/api/mileage', mileageRouter);
@@ -50,12 +44,21 @@ app.use('/api/payments', paymentsRouter);
 app.use('/api/driver/orders', driverOrdersRouter);
 app.use('/api/drivers', driversRouter);
 app.use('/api/alerts', alertsRouter);
+app.use('/api/trucks', trucksRouter);
+app.use('/api/trailers', trailersRouter);
+app.use('/api/truck-trailer', truckTrailerAssignmentsRoutes);
 
 // ---------------- Webhook ----------------
 app.post('/api/webhook/payment', async (req, res) => {
   const { order_id, status } = req.body;
   try {
     const db = require('./db');
+    const order = await db('orders').where({ id: order_id }).first();
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
     if (status === 'paid') {
       await db('orders').where({ id: order_id }).update({
         payment_status: 'paid',
@@ -68,6 +71,7 @@ app.post('/api/webhook/payment', async (req, res) => {
         updated_at: new Date().toISOString()
       });
     }
+
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

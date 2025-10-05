@@ -1,127 +1,215 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import api from '../api/api';
-import { selectUserRole } from '../features/auth/authSlice';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { FaPlus, FaSyncAlt } from "react-icons/fa";
 
 export default function Orders() {
-  const [customer, setCustomer] = useState('');
-  const [pickup, setPickup] = useState('');
-  const [destination, setDestination] = useState('');
-  const [driverUsername, setDriverUsername] = useState('');
-  const [driverSuggestions, setDriverSuggestions] = useState([]);
-  const role = useSelector(selectUserRole);
-  const navigate = useNavigate();
+  const [orders, setOrders] = useState([]);
+  const [formData, setFormData] = useState({
+    customer_name: "",
+    pickup: "",
+    destination: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const token = localStorage.getItem("token");
 
-  // Driver autocomplete
-  const handleDriverChange = async (e) => {
-    const value = e.target.value;
-    setDriverUsername(value);
-
-    if (value.length >= 1) {
-      try {
-        const res = await api.get(`/users/drivers?search=${value}`); // Updated endpoint
-        setDriverSuggestions(res.data || []);
-      } catch (err) {
-        console.error('Driver search error:', err);
-        setDriverSuggestions([]);
-      }
-    } else {
-      setDriverSuggestions([]);
+  // ✅ Fetch all orders
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get("/api/orders", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setOrders(res.data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      alert("Failed to load orders");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSelectDriver = (username) => {
-    setDriverUsername(username);
-    setDriverSuggestions([]);
-  };
-
-  const handleSubmit = async (e) => {
+  // ✅ Create new order
+  const createOrder = async (e) => {
     e.preventDefault();
-
-    if (!customer || !pickup || !destination) {
-      alert('All fields are required.');
+    if (!formData.customer_name || !formData.pickup || !formData.destination) {
+      alert("All fields are required");
       return;
     }
 
     try {
-      // Step 1: create order
-      const createPayload = { customer_name: customer, pickup, destination, driver_username: driverUsername || null };
-      const res = await api.post('/api/orders', createPayload); // Updated endpoint
-
-      alert(`Order created! Waybill: ${res.data.waybill}`);
-      navigate('/dashboard');
+      setLoading(true);
+      await axios.post("/api/orders", formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setFormData({ customer_name: "", pickup: "", destination: "" });
+      await fetchOrders();
+      alert("✅ Order created successfully");
     } catch (err) {
-      console.error('Create order error:', err.response?.data || err.message);
-      alert(err.response?.data?.error || 'Failed to create order.');
+      console.error("Create order error:", err);
+      alert("Failed to create order");
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ✅ Status update actions
+  const updateStatus = async (orderId, endpoint) => {
+    try {
+      await axios.post(`/api/orders/${orderId}/${endpoint}`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchOrders();
+    } catch (err) {
+      console.error(`Update ${endpoint} error:`, err);
+      alert("Action failed");
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
   return (
-    <div style={{ maxWidth: 500, margin: '50px auto' }}>
-      <h2>Create Order</h2>
-      <form onSubmit={handleSubmit}>
+    <div className="orders-page p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Orders</h2>
+        <button
+          onClick={fetchOrders}
+          className="bg-gray-200 px-3 py-2 rounded-md flex items-center gap-2 hover:bg-gray-300"
+        >
+          <FaSyncAlt /> Refresh
+        </button>
+      </div>
+
+      {/* Create Order Form */}
+      <form
+        onSubmit={createOrder}
+        className="bg-white shadow rounded-lg p-4 mb-6 flex flex-wrap gap-4"
+      >
         <input
           type="text"
-          value={customer}
-          onChange={e => setCustomer(e.target.value)}
           placeholder="Customer Name"
-          required
+          value={formData.customer_name}
+          onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+          className="border p-2 rounded w-full md:w-1/4"
         />
         <input
           type="text"
-          value={pickup}
-          onChange={e => setPickup(e.target.value)}
           placeholder="Pickup Location"
-          required
+          value={formData.pickup}
+          onChange={(e) => setFormData({ ...formData, pickup: e.target.value })}
+          className="border p-2 rounded w-full md:w-1/4"
         />
         <input
           type="text"
-          value={destination}
-          onChange={e => setDestination(e.target.value)}
           placeholder="Destination"
-          required
+          value={formData.destination}
+          onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+          className="border p-2 rounded w-full md:w-1/4"
         />
-
-        {['dispatcher', 'admin'].includes(role) && (
-          <div style={{ position: 'relative', marginTop: 10 }}>
-            <input
-              type="text"
-              value={driverUsername}
-              onChange={handleDriverChange}
-              placeholder="Assign Driver (optional)"
-            />
-            {driverSuggestions.length > 0 && (
-              <ul style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#fff',
-                border: '1px solid #ccc',
-                margin: 0,
-                padding: 0,
-                listStyle: 'none',
-                maxHeight: 120,
-                overflowY: 'auto',
-                zIndex: 10
-              }}>
-                {driverSuggestions.map(driver => (
-                  <li
-                    key={driver.id}
-                    style={{ padding: 5, cursor: 'pointer' }}
-                    onClick={() => handleSelectDriver(driver.username)}
-                  >
-                    {driver.username}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <button type="submit" style={{ marginTop: 10 }}>Create Order</button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
+        >
+          <FaPlus /> {loading ? "Creating..." : "Create Order"}
+        </button>
       </form>
+
+      {/* Orders Table */}
+      <div className="overflow-x-auto bg-white shadow rounded-lg">
+        <table className="min-w-full border">
+          <thead className="bg-gray-100 text-left">
+            <tr>
+              <th className="p-2 border">#</th>
+              <th className="p-2 border">Customer</th>
+              <th className="p-2 border">Pickup</th>
+              <th className="p-2 border">Destination</th>
+              <th className="p-2 border">Waybill</th>
+              <th className="p-2 border">Status</th>
+              <th className="p-2 border">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.length > 0 ? (
+              orders.map((order, index) => (
+                <tr key={order.id} className="border-t">
+                  <td className="p-2 border">{index + 1}</td>
+                  <td className="p-2 border">{order.customer_name}</td>
+                  <td className="p-2 border">{order.pickup}</td>
+                  <td className="p-2 border">{order.destination}</td>
+                  <td className="p-2 border">{order.waybill || "-"}</td>
+                  <td className="p-2 border capitalize">{order.status}</td>
+                  <td className="p-2 border">
+                    {order.status === "created" && (
+                      <button
+                        onClick={() => updateStatus(order.id, "assign")}
+                        className="bg-yellow-500 text-white px-2 py-1 rounded mr-2"
+                      >
+                        Assign
+                      </button>
+                    )}
+                    {order.status === "assigned" && (
+                      <button
+                        onClick={() => updateStatus(order.id, "loaded")}
+                        className="bg-blue-500 text-white px-2 py-1 rounded mr-2"
+                      >
+                        Mark Loaded
+                      </button>
+                    )}
+                    {order.status === "loaded" && (
+                      <button
+                        onClick={() => updateStatus(order.id, "enroute")}
+                        className="bg-indigo-500 text-white px-2 py-1 rounded mr-2"
+                      >
+                        Start Trip
+                      </button>
+                    )}
+                    {order.status === "enroute" && (
+                      <button
+                        onClick={() => updateStatus(order.id, "delivered")}
+                        className="bg-green-600 text-white px-2 py-1 rounded mr-2"
+                      >
+                        Mark Delivered
+                      </button>
+                    )}
+                    {order.status === "delivered" && (
+                      <button
+                        onClick={() => updateStatus(order.id, "awaiting-payment")}
+                        className="bg-orange-500 text-white px-2 py-1 rounded mr-2"
+                      >
+                        Request Payment
+                      </button>
+                    )}
+                    {order.status === "awaiting_payment" && (
+                      <button
+                        onClick={() => updateStatus(order.id, "paid")}
+                        className="bg-green-700 text-white px-2 py-1 rounded mr-2"
+                      >
+                        Confirm Paid
+                      </button>
+                    )}
+                    {order.status === "paid" && (
+                      <button
+                        onClick={() => updateStatus(order.id, "close")}
+                        className="bg-gray-700 text-white px-2 py-1 rounded"
+                      >
+                        Close Order
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="7" className="text-center p-4">
+                  {loading ? "Loading orders..." : "No orders found"}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
