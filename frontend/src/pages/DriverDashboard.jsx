@@ -77,6 +77,25 @@ export default function DriverDashboard() {
   };
 
   // ---------------------- Journey Actions ----------------------
+  const handleLoadOrder = async (orderId) => {
+    const qtyInput = prompt("Enter quantity loaded for this order:");
+    if (qtyInput === null) return;
+    const quantity_loaded = parseInt(qtyInput, 10);
+
+    if (isNaN(quantity_loaded) || quantity_loaded < 0) {
+      return alert("Invalid quantity. Please enter a number >= 0.");
+    }
+
+    try {
+      await api.put(`/api/orders/${orderId}/load`, { quantity_loaded });
+      alert("Order loaded successfully. You can now start the journey.");
+      fetchAssignedOrders();
+    } catch (err) {
+      console.error("Load Order error:", err.response?.data || err.message);
+      alert("Failed to load order. Try again.");
+    }
+  };
+
   const handleStartJourney = async (orderId) => {
     try {
       await api.post(`/api/orders/${orderId}/enroute`);
@@ -176,76 +195,99 @@ export default function DriverDashboard() {
   );
 
   // ---------------------- Render Assigned Orders ----------------------
-  const renderAssignedOrders = () => (
-    <div>
-      <h2>Assigned Orders</h2>
-      {assignedOrders.length > 0 ? (
-        <table border="1" cellPadding="5" style={{ width: "100%" }}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Customer</th>
-              <th>Pickup</th>
-              <th>Destination</th>
-              <th>Status</th>
-              <th>Qty Loaded</th>
-              <th>Qty Delivered</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assignedOrders.map(order => {
-              const canStartJourney = order.status === "assigned";
-              const canLogFuel = order.status === "enroute";
-              const canLogMileage = order.status === "enroute";
-              const canUploadPOD = order.status === "enroute";
-              const canMarkDelivered = order.status === "enroute" && order.pod_file;
+  const renderAssignedOrders = () => {
+    const getInsuranceStatus = (file, expiry) => {
+      if (!expiry) return { status: "Missing", color: "gray" };
+      const today = new Date();
+      const diffDays = Math.ceil((new Date(expiry) - today) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return { status: "Expired", color: "red" };
+      if (diffDays <= 30) return { status: "Expiring Soon", color: "orange" };
+      return { status: "Valid", color: "green" };
+    };
 
-              return (
-                <tr key={order.id}>
-                  <td>{order.id}</td>
-                  <td>{order.customer_name}</td>
-                  <td>{order.pickup}</td>
-                  <td>{order.destination}</td>
-                  <td>{order.status}</td>
-                  <td>{order.quantity_loaded || 0}</td>
-                  <td>{order.quantity_delivered || 0}</td>
-                  <td>
-                    {canStartJourney && (
-                      <button onClick={() => handleStartJourney(order.id)}>Start Journey</button>
-                    )}
-                    {canLogFuel && (
-                      <button onClick={() => navigate(`/fuel/${order.id}`)} style={{ marginLeft: 5 }}>
-                        Log Fuel
-                      </button>
-                    )}
-                    {canLogMileage && (
-                      <button onClick={() => navigate(`/mileage/${order.id}`)} style={{ marginLeft: 5 }}>
-                        Log Mileage
-                      </button>
-                    )}
-                    {canUploadPOD && (
-                      <button onClick={() => navigate(`/documents/${order.id}`)} style={{ marginLeft: 5 }}>
-                        Upload POD
-                      </button>
-                    )}
-                    {canMarkDelivered && (
-                      <button onClick={() => handleMarkDelivered(order.id)} style={{ marginLeft: 5 }}>
-                        Mark Delivered
-                      </button>
-                    )}
-                    <button onClick={() => navigate(`/expenses/${order.id}`)} style={{ marginLeft: 5 }}>
-                      Log Expenses
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      ) : <p>No assigned orders.</p>}
-    </div>
-  );
+    return (
+      <div>
+        <h2>Assigned Orders</h2>
+        {assignedOrders.length > 0 ? (
+          <table border="1" cellPadding="5" style={{ width: "100%" }}>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Customer</th>
+                <th>Pickup</th>
+                <th>Destination</th>
+                <th>Status</th>
+                <th>Qty Loaded</th>
+                <th>Qty Delivered</th>
+                <th>Insurance</th>
+                <th>Cash Spent</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assignedOrders.map(order => {
+                const {
+                  status,
+                  quantity_loaded,
+                  quantity_delivered,
+                  pod_file,
+                  cash_spent,
+                  truck_insurance_file,
+                  truck_insurance_expiry,
+                  trailer_insurance_file,
+                  trailer_insurance_expiry
+                } = order;
+
+                const canLoadOrder = status === "assigned";
+                const canStartJourney = status === "loaded";
+                const canLogFuel = status === "enroute";
+                const canLogMileage = status === "enroute";
+                const canUploadPOD = status === "enroute";
+                const canMarkDelivered = status === "enroute" && pod_file;
+
+                const qtyColor = quantity_delivered < quantity_loaded ? "red" : "black";
+
+                const truckIns = getInsuranceStatus(truck_insurance_file, truck_insurance_expiry);
+                const trailerIns = getInsuranceStatus(trailer_insurance_file, trailer_insurance_expiry);
+
+                return (
+                  <tr key={order.id}>
+                    <td>{order.id}</td>
+                    <td>{order.customer_name}</td>
+                    <td>{order.pickup}</td>
+                    <td>{order.destination}</td>
+                    <td>{status}</td>
+                    <td style={{ color: qtyColor }}>{quantity_loaded ?? 0}</td>
+                    <td style={{ color: qtyColor }}>{quantity_delivered ?? 0}</td>
+                    <td>
+                      <div style={{ color: truckIns.color }}>
+                        Truck: {truckIns.status}
+                        {truck_insurance_file && <> | <a href={`/uploads/insurance/${truck_insurance_file}`} target="_blank" rel="noopener noreferrer">View</a></>}
+                      </div>
+                      <div style={{ color: trailerIns.color }}>
+                        Trailer: {trailerIns.status}
+                        {trailer_insurance_file && <> | <a href={`/uploads/insurance/${trailer_insurance_file}`} target="_blank" rel="noopener noreferrer">View</a></>}
+                      </div>
+                    </td>
+                    <td>{cash_spent ? `$${cash_spent}` : "$0"}</td>
+                    <td>
+                      {canLoadOrder && <button onClick={() => handleLoadOrder(order.id)}>Load Order</button>}
+                      {canStartJourney && <button onClick={() => handleStartJourney(order.id)} style={{ marginLeft: 5 }}>Start Journey</button>}
+                      {canLogFuel && <button onClick={() => navigate(`/fuel/${order.id}`)} style={{ marginLeft: 5 }}>Log Fuel</button>}
+                      {canLogMileage && <button onClick={() => navigate(`/mileage/${order.id}`)} style={{ marginLeft: 5 }}>Log Mileage</button>}
+                      {canUploadPOD && <button onClick={() => navigate(`/documents/${order.id}`)} style={{ marginLeft: 5 }}>Upload POD</button>}
+                      {canMarkDelivered && <button onClick={() => handleMarkDelivered(order.id)} style={{ marginLeft: 5 }}>Mark Delivered</button>}
+                      <button onClick={() => navigate(`/expenses/${order.id}`)} style={{ marginLeft: 5 }}>Log Expenses</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <p>No assigned orders.</p>}
+      </div>
+    );
+  };
 
   // ---------------------- Render Based on Sidebar Route ----------------------
   const path = window.location.pathname;

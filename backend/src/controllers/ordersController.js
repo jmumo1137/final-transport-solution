@@ -12,7 +12,6 @@ function generateWaybill() {
 async function createOrder(req, res) {
   try {
     const { customer_name, pickup, destination } = req.body;
-    const consignee_id = req.user.id; // logged-in user
 
     if (!customer_name || !pickup || !destination) {
       return res.status(400).json({ message: 'Customer, pickup and destination are required' });
@@ -24,7 +23,6 @@ async function createOrder(req, res) {
       customer_name,
       pickup,
       destination,
-      consignee_id,
       waybill,
       status: 'created',
       created_at: db.fn.now(),
@@ -41,20 +39,10 @@ async function createOrder(req, res) {
   }
 }
 
-// -------- LIST ORDERS (WITH CONSIGNEE FILTER) --------
+// -------- LIST ORDERS --------
 async function listOrders(req, res) {
   try {
-    const user = req.user;
-    let orders;
-
-    if (user.role === 'consignee') {
-      orders = await db('orders')
-        .where({ consignee_id: user.id })
-        .orderBy('created_at', 'desc');
-    } else {
-      orders = await db('orders').orderBy('created_at', 'desc');
-    }
-
+    const orders = await db('orders').orderBy('created_at', 'desc');
     res.json(orders);
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
@@ -71,9 +59,6 @@ async function assignOrder(req, res) {
     if (!driver_id || !truck_id) {
       return res.status(400).json({ error: 'Driver and Truck are required.' });
     }
-
-    const driver = await db('users').where({ id: driver_id, role: 'driver' }).first();
-    if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
     const order = await db('orders').where({ id: orderId }).first();
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -102,14 +87,14 @@ async function assignOrder(req, res) {
   }
 }
 
-// -------- UPDATE ORDER STATUS WITH VALIDATIONS --------
+// -------- UPDATE ORDER STATUS --------
 async function updateOrderStatus(req, res, newStatus, timeField = null) {
   try {
     const { id } = req.params;
     const order = await db('orders').where({ id }).first();
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // DRIVER VALIDATIONS
+    // Validation
     if (newStatus === 'loaded' && (!order.truck_id || !order.driver_id)) {
       return res.status(400).json({ message: 'Cannot mark loaded: truck or driver missing.' });
     }
