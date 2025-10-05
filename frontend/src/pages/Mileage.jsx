@@ -8,6 +8,7 @@ export default function Mileage() {
 
   const [startOdometer, setStartOdometer] = useState('');
   const [endOdometer, setEndOdometer] = useState('');
+  const [cashSpent, setCashSpent] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -15,7 +16,6 @@ export default function Mileage() {
       alert('Start and End odometer are required!');
       return;
     }
-
     if (Number(endOdometer) < Number(startOdometer)) {
       alert('End odometer must be greater than or equal to start odometer');
       return;
@@ -25,12 +25,13 @@ export default function Mileage() {
       setLoading(true);
       const res = await api.post(`/api/mileage/${id}`, {
         start_odometer: Number(startOdometer),
-        end_odometer: Number(endOdometer)
+        end_odometer: Number(endOdometer),
+        cash_spent: cashSpent || 0
       });
 
       if (res.data?.ok) {
         alert('Mileage logged successfully!');
-        navigate('/driver'); // return to driver dashboard
+        navigate('/dashboard');
       }
     } catch (err) {
       console.error('Mileage error:', err.response?.data || err.message);
@@ -43,23 +44,10 @@ export default function Mileage() {
   return (
     <div style={{ padding: 20 }}>
       <h2>Log Mileage — Order {id}</h2>
-      <input
-        type="number"
-        placeholder="Start Odometer"
-        value={startOdometer}
-        onChange={e => setStartOdometer(e.target.value)}
-        style={{ display: 'block', marginBottom: 10 }}
-      />
-      <input
-        type="number"
-        placeholder="End Odometer"
-        value={endOdometer}
-        onChange={e => setEndOdometer(e.target.value)}
-        style={{ display: 'block', marginBottom: 10 }}
-      />
-      <button onClick={handleSubmit} disabled={loading}>
-        {loading ? 'Logging...' : 'Log Mileage'}
-      </button>
+      <input type="number" placeholder="Start Odometer" value={startOdometer} onChange={e => setStartOdometer(e.target.value)} style={{ display: 'block', marginBottom: 10 }} />
+      <input type="number" placeholder="End Odometer" value={endOdometer} onChange={e => setEndOdometer(e.target.value)} style={{ display: 'block', marginBottom: 10 }} />
+      <input type="number" placeholder="Cash Spent (optional)" value={cashSpent} onChange={e => setCashSpent(e.target.value)} style={{ display: 'block', marginBottom: 10 }} />
+      <button onClick={handleSubmit} disabled={loading}>{loading ? 'Logging...' : 'Log Mileage'}</button>
     </div>
   );
 }

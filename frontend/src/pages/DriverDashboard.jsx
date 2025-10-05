@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import api from "../api/api";
 import { selectUserId, selectUserRole } from "../features/auth/authSlice";
 
 export default function DriverDashboard() {
   const [driverInfo, setDriverInfo] = useState(null);
+  const [assignedOrders, setAssignedOrders] = useState([]);
   const [files, setFiles] = useState({});
   const [licenseNumber, setLicenseNumber] = useState("");
-  const [assignedOrders, setAssignedOrders] = useState([]);
   const role = useSelector(selectUserRole);
   const userId = useSelector(selectUserId);
+  const navigate = useNavigate();
 
-  // Fetch driver info
+  // ---------------------- Fetch Driver Info ----------------------
   const fetchDriverInfo = async () => {
     try {
       const res = await api.get(`/api/drivers/${userId}`);
@@ -22,7 +24,7 @@ export default function DriverDashboard() {
     }
   };
 
-  // Fetch assigned orders
+  // ---------------------- Fetch Assigned Orders ----------------------
   const fetchAssignedOrders = async () => {
     try {
       const res = await api.get(`/api/driver/orders`);
@@ -39,18 +41,16 @@ export default function DriverDashboard() {
     }
   }, [role, userId]);
 
-  // File selection
+  // ---------------------- File Upload ----------------------
   const handleFileChange = (e) => {
     const { name, files: selectedFiles } = e.target;
     setFiles(prev => ({ ...prev, [name]: selectedFiles[0] }));
   };
 
-  // Upload a single file
   const handleUpload = async (docType) => {
     if (!files[docType]) return alert("Please select a file to upload.");
     const formData = new FormData();
     formData.append(docType, files[docType]);
-
     try {
       const res = await api.put(`/api/drivers/${userId}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -64,7 +64,6 @@ export default function DriverDashboard() {
     }
   };
 
-  // Update license number
   const handleLicenseUpdate = async () => {
     if (!licenseNumber) return alert("License number cannot be empty.");
     try {
@@ -77,7 +76,28 @@ export default function DriverDashboard() {
     }
   };
 
-  // File status checker
+  // ---------------------- Journey Actions ----------------------
+  const handleStartJourney = async (orderId) => {
+    try {
+      await api.post(`/api/orders/${orderId}/enroute`);
+      fetchAssignedOrders();
+    } catch (err) {
+      console.error("Start Journey error:", err.response?.data || err.message);
+      alert("Failed to start journey");
+    }
+  };
+
+  const handleMarkDelivered = async (orderId) => {
+    try {
+      await api.post(`/api/orders/${orderId}/delivered`);
+      fetchAssignedOrders();
+    } catch (err) {
+      console.error("Mark Delivered error:", err.response?.data || err.message);
+      alert("Failed to mark delivered");
+    }
+  };
+
+  // ---------------------- Document Status ----------------------
   const checkStatus = (fileName, expiryDate = null) => {
     if (!fileName) return { status: "Missing", color: "gray" };
     if (expiryDate) {
@@ -90,36 +110,7 @@ export default function DriverDashboard() {
     return { status: "Valid", color: "green" };
   };
 
-  // Render Assigned Orders
-  const renderAssignedOrders = () => (
-    <div>
-      <h2>Assigned Orders</h2>
-      {assignedOrders.length > 0 ? (
-        <table border="1" cellPadding="5" style={{ width: "100%" }}>
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Origin</th>
-              <th>Destination</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assignedOrders.map(order => (
-              <tr key={order.id}>
-                <td>{order.id}</td>
-                <td>{order.origin}</td>
-                <td>{order.destination}</td>
-                <td>{order.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : <p>No assigned orders.</p>}
-    </div>
-  );
-
-  // Render Driver Info & Compliance
+  // ---------------------- Render Driver Info ----------------------
   const renderDriverInfo = () => (
     <div>
       <h2>Driver Info & Compliance</h2>
@@ -168,6 +159,7 @@ export default function DriverDashboard() {
               })}
             </tbody>
           </table>
+
           <div style={{ marginTop: 20 }}>
             <strong>Username: </strong> {driverInfo.username}
           </div>
@@ -183,7 +175,79 @@ export default function DriverDashboard() {
     </div>
   );
 
-  // Render based on current route
+  // ---------------------- Render Assigned Orders ----------------------
+  const renderAssignedOrders = () => (
+    <div>
+      <h2>Assigned Orders</h2>
+      {assignedOrders.length > 0 ? (
+        <table border="1" cellPadding="5" style={{ width: "100%" }}>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Customer</th>
+              <th>Pickup</th>
+              <th>Destination</th>
+              <th>Status</th>
+              <th>Qty Loaded</th>
+              <th>Qty Delivered</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assignedOrders.map(order => {
+              const canStartJourney = order.status === "assigned";
+              const canLogFuel = order.status === "enroute";
+              const canLogMileage = order.status === "enroute";
+              const canUploadPOD = order.status === "enroute";
+              const canMarkDelivered = order.status === "enroute" && order.pod_file;
+
+              return (
+                <tr key={order.id}>
+                  <td>{order.id}</td>
+                  <td>{order.customer_name}</td>
+                  <td>{order.pickup}</td>
+                  <td>{order.destination}</td>
+                  <td>{order.status}</td>
+                  <td>{order.quantity_loaded || 0}</td>
+                  <td>{order.quantity_delivered || 0}</td>
+                  <td>
+                    {canStartJourney && (
+                      <button onClick={() => handleStartJourney(order.id)}>Start Journey</button>
+                    )}
+                    {canLogFuel && (
+                      <button onClick={() => navigate(`/fuel/${order.id}`)} style={{ marginLeft: 5 }}>
+                        Log Fuel
+                      </button>
+                    )}
+                    {canLogMileage && (
+                      <button onClick={() => navigate(`/mileage/${order.id}`)} style={{ marginLeft: 5 }}>
+                        Log Mileage
+                      </button>
+                    )}
+                    {canUploadPOD && (
+                      <button onClick={() => navigate(`/documents/${order.id}`)} style={{ marginLeft: 5 }}>
+                        Upload POD
+                      </button>
+                    )}
+                    {canMarkDelivered && (
+                      <button onClick={() => handleMarkDelivered(order.id)} style={{ marginLeft: 5 }}>
+                        Mark Delivered
+                      </button>
+                    )}
+                    <button onClick={() => navigate(`/expenses/${order.id}`)} style={{ marginLeft: 5 }}>
+                      Log Expenses
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : <p>No assigned orders.</p>}
+    </div>
+  );
+
+  // ---------------------- Render Based on Sidebar Route ----------------------
   const path = window.location.pathname;
   if (path === "/dashboard") return renderAssignedOrders();
   if (path === "/driver") return renderDriverInfo();

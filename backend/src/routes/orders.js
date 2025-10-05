@@ -18,7 +18,7 @@ router.post(
   ordersController.assignOrder
 );
 
-// Order lifecycle
+// Order lifecycle with validations
 router.post('/:id/loaded', authenticateToken, ordersController.markLoaded);
 router.post('/:id/enroute', authenticateToken, ordersController.markEnroute);
 router.post('/:id/delivered', authenticateToken, ordersController.markDelivered);

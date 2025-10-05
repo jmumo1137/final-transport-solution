@@ -1,4 +1,3 @@
-// src/controllers/ordersController.js
 const db = require('../db');
 const { format } = require('date-fns');
 
@@ -13,6 +12,7 @@ function generateWaybill() {
 async function createOrder(req, res) {
   try {
     const { customer_name, pickup, destination } = req.body;
+    const consignee_id = req.user.id; // logged-in user
 
     if (!customer_name || !pickup || !destination) {
       return res.status(400).json({ message: 'Customer, pickup and destination are required' });
@@ -24,6 +24,7 @@ async function createOrder(req, res) {
       customer_name,
       pickup,
       destination,
+      consignee_id,
       waybill,
       status: 'created',
       created_at: db.fn.now(),
@@ -40,10 +41,20 @@ async function createOrder(req, res) {
   }
 }
 
-// -------- LIST ALL ORDERS --------
+// -------- LIST ORDERS (WITH CONSIGNEE FILTER) --------
 async function listOrders(req, res) {
   try {
-    const orders = await db('orders').orderBy('created_at', 'desc');
+    const user = req.user;
+    let orders;
+
+    if (user.role === 'consignee') {
+      orders = await db('orders')
+        .where({ consignee_id: user.id })
+        .orderBy('created_at', 'desc');
+    } else {
+      orders = await db('orders').orderBy('created_at', 'desc');
+    }
+
     res.json(orders);
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
@@ -55,33 +66,27 @@ async function listOrders(req, res) {
 async function assignOrder(req, res) {
   try {
     const orderId = parseInt(req.params.id, 10);
-    const { driver_id, truck_id, trailer_id } = req.body; // expect driver_id from frontend
+    const { driver_id, truck_id, trailer_id } = req.body;
 
-    // Driver and Truck are required, Trailer is optional
     if (!driver_id || !truck_id) {
       return res.status(400).json({ error: 'Driver and Truck are required.' });
     }
 
-    // Lookup driver
     const driver = await db('users').where({ id: driver_id, role: 'driver' }).first();
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
-    // Lookup order
     const order = await db('orders').where({ id: orderId }).first();
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    // Check if truck is busy
     const activeStatuses = ['assigned', 'loaded', 'enroute'];
     const truckConflict = await db('orders').where({ truck_id }).whereIn('status', activeStatuses).first();
     if (truckConflict) return res.status(400).json({ error: 'Truck is already assigned to another order.' });
 
-    // Check if trailer is busy (only if trailer_id is provided)
     if (trailer_id) {
       const trailerConflict = await db('orders').where({ trailer_id }).whereIn('status', activeStatuses).first();
       if (trailerConflict) return res.status(400).json({ error: 'Trailer is already assigned to another order.' });
     }
 
-    // Update order
     await db('orders').where({ id: orderId }).update({
       driver_id,
       truck_id: parseInt(truck_id, 10),
@@ -97,19 +102,31 @@ async function assignOrder(req, res) {
   }
 }
 
-
-// -------- UPDATE ORDER STATUS (GENERIC) --------
+// -------- UPDATE ORDER STATUS WITH VALIDATIONS --------
 async function updateOrderStatus(req, res, newStatus, timeField = null) {
   try {
     const { id } = req.params;
+    const order = await db('orders').where({ id }).first();
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // DRIVER VALIDATIONS
+    if (newStatus === 'loaded' && (!order.truck_id || !order.driver_id)) {
+      return res.status(400).json({ message: 'Cannot mark loaded: truck or driver missing.' });
+    }
+    if (newStatus === 'enroute' && order.status !== 'loaded') {
+      return res.status(400).json({ message: 'Cannot start enroute: order not loaded.' });
+    }
+    if (newStatus === 'delivered' && !order.pod_file) {
+      return res.status(400).json({ message: 'Cannot deliver: POD not uploaded.' });
+    }
+
     const updateData = { status: newStatus, updated_at: db.fn.now() };
     if (timeField) updateData[timeField] = db.fn.now();
 
-    const updated = await db('orders').where({ id }).update(updateData);
-    if (!updated) return res.status(404).json({ message: 'Order not found' });
+    await db('orders').where({ id }).update(updateData);
+    const updatedOrder = await db('orders').where({ id }).first();
+    res.json(updatedOrder);
 
-    const order = await db('orders').where({ id }).first();
-    res.json(order);
   } catch (error) {
     console.error(`❌ Error updating order to ${newStatus}:`, error);
     res.status(500).json({ message: 'Internal server error' });

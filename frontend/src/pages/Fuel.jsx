@@ -1,4 +1,3 @@
-// src/pages/Fuel.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/api';
@@ -8,6 +7,7 @@ export default function Fuel() {
   const [file, setFile] = useState(null);
   const [liters, setLiters] = useState('');
   const [cost, setCost] = useState('');
+  const [cashSpent, setCashSpent] = useState('');
   const [fuelRecords, setFuelRecords] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +25,7 @@ export default function Fuel() {
     fetchFuelRecords();
   }, [id]);
 
-  // Upload fuel receipt
+  // Upload fuel receipt + track cash spent
   const handleUpload = async () => {
     if (!file || !liters || !cost) {
       alert('File, liters, and cost are required!');
@@ -36,6 +36,7 @@ export default function Fuel() {
     formData.append('file', file);
     formData.append('liters', liters);
     formData.append('cost', cost);
+    if (cashSpent) formData.append('cash_spent', cashSpent);
 
     try {
       setLoading(true);
@@ -48,6 +49,7 @@ export default function Fuel() {
         setFile(null);
         setLiters('');
         setCost('');
+        setCashSpent('');
         fetchFuelRecords();
       }
     } catch (err) {
@@ -61,35 +63,17 @@ export default function Fuel() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Fuel — Order {id}</h1>
-
       <div style={{ marginBottom: 20 }}>
-        <input
-          type="file"
-          onChange={e => setFile(e.target.files[0])}
-        />
+        <input type="file" onChange={e => setFile(e.target.files[0])} />
         <br />
-        <input
-          type="number"
-          placeholder="Liters"
-          value={liters}
-          onChange={e => setLiters(e.target.value)}
-          style={{ marginTop: 5 }}
-        />
+        <input type="number" placeholder="Liters" value={liters} onChange={e => setLiters(e.target.value)} style={{ marginTop: 5 }} />
         <br />
-        <input
-          type="number"
-          placeholder="Cost"
-          value={cost}
-          onChange={e => setCost(e.target.value)}
-          style={{ marginTop: 5 }}
-        />
+        <input type="number" placeholder="Cost" value={cost} onChange={e => setCost(e.target.value)} style={{ marginTop: 5 }} />
         <br />
-        <button
-          onClick={handleUpload}
-          disabled={loading}
-          style={{ marginTop: 10 }}
-        >
-          {loading ? 'Uploading...' : 'Upload Receipt'}
+        <input type="number" placeholder="Cash Spent (optional)" value={cashSpent} onChange={e => setCashSpent(e.target.value)} style={{ marginTop: 5 }} />
+        <br />
+        <button onClick={handleUpload} disabled={loading} style={{ marginTop: 10 }}>
+          {loading ? 'Uploading...' : 'Upload Fuel Record'}
         </button>
       </div>
 
@@ -104,6 +88,7 @@ export default function Fuel() {
               <th>File</th>
               <th>Liters</th>
               <th>Cost</th>
+              <th>Cash Spent</th>
               <th>Uploaded At</th>
             </tr>
           </thead>
@@ -112,12 +97,11 @@ export default function Fuel() {
               <tr key={record.id}>
                 <td>{record.id}</td>
                 <td>
-                  <a href={`/${record.file_path}`} target="_blank" rel="noreferrer">
-                    View
-                  </a>
+                  <a href={`/${record.file_path}`} target="_blank" rel="noreferrer">View</a>
                 </td>
                 <td>{record.liters}</td>
                 <td>{record.cost}</td>
+                <td>{record.cash_spent || 0}</td>
                 <td>{new Date(record.uploaded_at).toLocaleString()}</td>
               </tr>
             ))}
