@@ -1,25 +1,23 @@
+// src/controllers/ordersController.js
 const db = require('../db');
 const { format } = require('date-fns');
 
-// Generate a unique waybill
+// ---------- WAYBILL ----------
 function generateWaybill() {
   const date = format(new Date(), 'yyyyMMddHHmmss');
   const random = Math.floor(1000 + Math.random() * 9000);
   return `WB-${date}-${random}`;
 }
 
-// -------- CREATE NEW ORDER --------
+// ---------- CREATE ----------
 async function createOrder(req, res) {
   try {
     const { customer_name, pickup, destination } = req.body;
-
-    if (!customer_name || !pickup || !destination) {
-      return res.status(400).json({ message: 'Customer, pickup and destination are required' });
-    }
+    if (!customer_name || !pickup || !destination)
+      return res.status(400).json({ message: 'Customer, pickup, and destination are required.' });
 
     const waybill = generateWaybill();
-
-    const insertedIds = await db('orders').insert({
+    const [id] = await db('orders').insert({
       customer_name,
       pickup,
       destination,
@@ -29,80 +27,205 @@ async function createOrder(req, res) {
       updated_at: db.fn.now(),
     });
 
-    const id = Array.isArray(insertedIds) ? insertedIds[0] : insertedIds;
     const order = await db('orders').where({ id }).first();
-
     res.status(201).json(order);
   } catch (error) {
-    console.error('❌ Error creating order:', error);
+    console.error('❌ createOrder:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }
 
-// -------- LIST ORDERS --------
+// ---------- LIST ----------
 async function listOrders(req, res) {
   try {
     const orders = await db('orders').orderBy('created_at', 'desc');
     res.json(orders);
   } catch (error) {
-    console.error('❌ Error fetching orders:', error);
+    console.error('❌ listOrders:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }
 
-// -------- ASSIGN DRIVER + TRUCK + TRAILER --------
+// ---------- ASSIGN ----------
 async function assignOrder(req, res) {
   try {
-    const orderId = parseInt(req.params.id, 10);
+    const orderId = Number(req.params.id);
     const { driver_id, truck_id, trailer_id } = req.body;
 
-    if (!driver_id || !truck_id) {
+    if (!driver_id || !truck_id)
       return res.status(400).json({ error: 'Driver and Truck are required.' });
-    }
 
     const order = await db('orders').where({ id: orderId }).first();
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
 
+    // prevent double assignment for active orders
     const activeStatuses = ['assigned', 'loaded', 'enroute'];
-    const truckConflict = await db('orders').where({ truck_id }).whereIn('status', activeStatuses).first();
-    if (truckConflict) return res.status(400).json({ error: 'Truck is already assigned to another order.' });
+    const truckConflict = await db('orders')
+      .where({ truck_id })
+      .whereIn('status', activeStatuses)
+      .andWhereNot({ id: orderId })
+      .first();
+    if (truckConflict)
+      return res.status(400).json({ error: 'Truck is already assigned to another active order.' });
 
     if (trailer_id) {
-      const trailerConflict = await db('orders').where({ trailer_id }).whereIn('status', activeStatuses).first();
-      if (trailerConflict) return res.status(400).json({ error: 'Trailer is already assigned to another order.' });
+      const trailerConflict = await db('orders')
+        .where({ trailer_id })
+        .whereIn('status', activeStatuses)
+        .andWhereNot({ id: orderId })
+        .first();
+      if (trailerConflict)
+        return res.status(400).json({ error: 'Trailer is already assigned to another active order.' });
     }
 
     await db('orders').where({ id: orderId }).update({
       driver_id,
-      truck_id: parseInt(truck_id, 10),
-      trailer_id: trailer_id ? parseInt(trailer_id, 10) : null,
+      truck_id,
+      trailer_id: trailer_id || null,
       status: 'assigned',
       updated_at: db.fn.now(),
     });
 
     res.json({ ok: true, message: 'Order assigned successfully.' });
   } catch (err) {
-    console.error('❌ assignOrder error:', err);
+    console.error('❌ assignOrder:', err);
     res.status(500).json({ error: 'Failed to assign order.' });
   }
 }
 
-// -------- UPDATE ORDER STATUS --------
+// ---------- LOAD ----------
+async function markLoaded(req, res) {
+  try {
+    const orderId = Number(req.params.id);
+    const { quantity_loaded } = req.body;
+
+    if (quantity_loaded == null || quantity_loaded <= 0)
+      return res.status(400).json({ message: 'Quantity loaded must be greater than zero.' });
+
+    const order = await db('orders').where({ id: orderId }).first();
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    // Validation: must have driver + truck; trailer optional
+    if (!order.driver_id || !order.truck_id)
+      return res.status(400).json({ message: 'Driver and Truck must be assigned before loading.' });
+
+    if (order.status !== 'assigned')
+      return res.status(400).json({ message: 'Only assigned orders can be marked as loaded.' });
+
+    await db('orders')
+      .where({ id: orderId })
+      .update({
+        quantity_loaded,
+        status: 'loaded',
+        loaded_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
+    res.json({ message: 'Order marked as loaded successfully.' });
+  } catch (err) {
+    console.error('❌ markLoaded:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// ---------- CASH SPENT ----------
+async function updateCashSpent(req, res) {
+  try {
+    const { id } = req.params;
+    const { cash_spent } = req.body;
+
+    if (cash_spent == null || cash_spent < 0)
+      return res.status(400).json({ message: 'Cash spent must be provided and >= 0.' });
+
+    const order = await db('orders').where({ id }).first();
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    await db('orders')
+      .where({ id })
+      .update({
+        cash_spent,
+        updated_at: db.fn.now(),
+      });
+
+    res.json({ message: 'Cash spent updated successfully.' });
+  } catch (err) {
+    console.error('❌ updateCashSpent:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+const multer = require('multer');
+const path = require('path');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/fuel_receipts/'),
+  filename: (req, file, cb) =>
+    cb(null, `fuel_${Date.now()}${path.extname(file.originalname)}`),
+});
+const upload = multer({ storage });
+
+// ---------- FUEL LOG ----------
+async function addFuelRecord(req, res) {
+  try {
+    const { id } = req.params; // order_id
+    const { liters, cost } = req.body;
+
+    if (!liters || !cost || !req.file)
+      return res.status(400).json({ message: 'Receipt, liters, and cost are required.' });
+
+    await db('fuel').insert({
+      order_id: id,
+      file_path: req.file.filename,
+      liters,
+      cost,
+      uploaded_at: db.fn.now(),
+    });
+
+    res.json({ message: 'Fuel record saved successfully.' });
+  } catch (err) {
+    console.error('❌ addFuelRecord:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+// ---------- GENERIC STATUS HANDLER ----------
 async function updateOrderStatus(req, res, newStatus, timeField = null) {
   try {
     const { id } = req.params;
     const order = await db('orders').where({ id }).first();
-    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
 
-    // Validation
-    if (newStatus === 'loaded' && (!order.truck_id || !order.driver_id)) {
-      return res.status(400).json({ message: 'Cannot mark loaded: truck or driver missing.' });
-    }
-    if (newStatus === 'enroute' && order.status !== 'loaded') {
-      return res.status(400).json({ message: 'Cannot start enroute: order not loaded.' });
-    }
-    if (newStatus === 'delivered' && !order.pod_file) {
-      return res.status(400).json({ message: 'Cannot deliver: POD not uploaded.' });
+    // enforce sequential transitions
+    const validFlow = {
+      created: 'assigned',
+      assigned: 'loaded',
+      loaded: 'enroute',
+      enroute: 'delivered',
+      delivered: 'awaiting_payment',
+      awaiting_payment: 'paid',
+      paid: 'closed',
+    };
+
+    if (validFlow[order.status] !== newStatus)
+      return res.status(400).json({ message: `Invalid status transition from ${order.status} → ${newStatus}` });
+
+    // Extra validations
+    if (newStatus === 'enroute' && order.status !== 'loaded')
+      return res.status(400).json({ message: 'Cannot start journey before loading.' });
+
+    if (newStatus === 'delivered') {
+      const pod = await db('documents')
+        .where({ order_id: id, type: 'POD' })
+        .first();
+      if (!pod)
+        return res.status(400).json({ message: 'POD must be uploaded before marking as delivered.' });
+
+      const [fuelCount] = await db('fuel').where({ order_id: id }).count({ c: '*' });
+      const [mileageCount] = await db('mileage').where({ order_id: id }).count({ c: '*' });
+
+      if (Number(fuelCount.c) === 0)
+        return res.status(400).json({ message: 'At least one fuel record required before delivery.' });
+      if (Number(mileageCount.c) === 0)
+        return res.status(400).json({ message: 'Mileage record required before delivery.' });
     }
 
     const updateData = { status: newStatus, updated_at: db.fn.now() };
@@ -111,29 +234,31 @@ async function updateOrderStatus(req, res, newStatus, timeField = null) {
     await db('orders').where({ id }).update(updateData);
     const updatedOrder = await db('orders').where({ id }).first();
     res.json(updatedOrder);
-
   } catch (error) {
-    console.error(`❌ Error updating order to ${newStatus}:`, error);
+    console.error(`❌ updateOrderStatus ${newStatus}:`, error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }
 
-// -------- STATUS ENDPOINTS --------
-const markLoaded = (req, res) => updateOrderStatus(req, res, 'loaded', 'loaded_at');
+// ---------- WRAPPERS ----------
 const markEnroute = (req, res) => updateOrderStatus(req, res, 'enroute');
 const markDelivered = (req, res) => updateOrderStatus(req, res, 'delivered', 'delivered_at');
 const markAwaitingPayment = (req, res) => updateOrderStatus(req, res, 'awaiting_payment');
 const markPaid = (req, res) => updateOrderStatus(req, res, 'paid', 'payment_date');
 const closeOrder = (req, res) => updateOrderStatus(req, res, 'closed', 'closed_at');
 
+// ---------- EXPORT ----------
 module.exports = {
   createOrder,
-  assignOrder,
   listOrders,
+  assignOrder,
   markLoaded,
   markEnroute,
   markDelivered,
   markAwaitingPayment,
   markPaid,
-  closeOrder
+  closeOrder,
+  updateCashSpent,
+  upload,
+  addFuelRecord,
 };

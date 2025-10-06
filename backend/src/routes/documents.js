@@ -26,16 +26,27 @@ router.get('/:orderId', async (req, res) => {
   }
 });
 
-// POST upload POD
+// POST upload POD + quantity delivered
 router.post('/:orderId', upload.single('file'), async (req, res) => {
   try {
+    const { quantity_delivered } = req.body;
+
     if (!req.file) return res.status(400).json({ error: 'File is required' });
 
+    // 1️⃣ Insert document record
     await db('documents').insert({
       order_id: req.params.orderId,
       type: req.body.type || 'pod',
       file_path: `uploads/documents/${req.file.filename}`,
+      uploaded_at: new Date(),
     });
+
+    // 2️⃣ Update quantity delivered in orders table if provided
+    if (quantity_delivered) {
+      await db('orders')
+        .where({ id: req.params.orderId })
+        .update({ quantity_delivered: Number(quantity_delivered) });
+    }
 
     res.json({ ok: true });
   } catch (err) {

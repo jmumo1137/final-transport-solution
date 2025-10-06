@@ -87,7 +87,7 @@ export default function DriverDashboard() {
     }
 
     try {
-      await api.put(`/api/orders/${orderId}/load`, { quantity_loaded });
+      await api.post(`/api/orders/${orderId}/loaded`, { quantity_loaded });
       alert("Order loaded successfully. You can now start the journey.");
       fetchAssignedOrders();
     } catch (err) {
@@ -113,6 +113,23 @@ export default function DriverDashboard() {
     } catch (err) {
       console.error("Mark Delivered error:", err.response?.data || err.message);
       alert("Failed to mark delivered");
+    }
+  };
+
+  const handleLogCash = async (orderId) => {
+    const cashInput = prompt("Enter cash spent during journey:");
+    if (cashInput === null) return;
+    const cashSpent = parseFloat(cashInput);
+
+    if (isNaN(cashSpent) || cashSpent < 0) return alert("Invalid cash amount.");
+
+    try {
+      await api.post(`/api/orders/${orderId}/cash`, { cash_spent: cashSpent });
+      fetchAssignedOrders();
+      alert("Cash logged successfully");
+    } catch (err) {
+      console.error("Log Cash error:", err.response?.data || err.message);
+      alert("Failed to log cash");
     }
   };
 
@@ -197,9 +214,9 @@ export default function DriverDashboard() {
   // ---------------------- Render Assigned Orders ----------------------
   const renderAssignedOrders = () => {
     const getInsuranceStatus = (file, expiry) => {
-      if (!expiry) return { status: "Missing", color: "gray" };
-      const today = new Date();
-      const diffDays = Math.ceil((new Date(expiry) - today) / (1000 * 60 * 60 * 24));
+      if (!file) return { status: "Missing", color: "gray" };
+      if (!expiry) return { status: "Valid", color: "green" };
+      const diffDays = Math.ceil((new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24));
       if (diffDays < 0) return { status: "Expired", color: "red" };
       if (diffDays <= 30) return { status: "Expiring Soon", color: "orange" };
       return { status: "Valid", color: "green" };
@@ -227,35 +244,42 @@ export default function DriverDashboard() {
             <tbody>
               {assignedOrders.map(order => {
                 const {
+                  id,
+                  customer_name,
+                  pickup,
+                  destination,
                   status,
                   quantity_loaded,
                   quantity_delivered,
                   pod_file,
                   cash_spent,
+                  truck_id,
+                  trailer_id,
                   truck_insurance_file,
                   truck_insurance_expiry,
                   trailer_insurance_file,
                   trailer_insurance_expiry
                 } = order;
 
-                const canLoadOrder = status === "assigned";
-                const canStartJourney = status === "loaded";
+                const canLoadOrder = status === "assigned" && truck_id;
+                const canStartJourney = status === "loaded" && truck_id && quantity_loaded > 0;
                 const canLogFuel = status === "enroute";
                 const canLogMileage = status === "enroute";
                 const canUploadPOD = status === "enroute";
+                const canLogCash = status === "enroute";
                 const canMarkDelivered = status === "enroute" && pod_file;
 
                 const qtyColor = quantity_delivered < quantity_loaded ? "red" : "black";
 
                 const truckIns = getInsuranceStatus(truck_insurance_file, truck_insurance_expiry);
-                const trailerIns = getInsuranceStatus(trailer_insurance_file, trailer_insurance_expiry);
+                const trailerIns = trailer_id ? getInsuranceStatus(trailer_insurance_file, trailer_insurance_expiry) : null;
 
                 return (
-                  <tr key={order.id}>
-                    <td>{order.id}</td>
-                    <td>{order.customer_name}</td>
-                    <td>{order.pickup}</td>
-                    <td>{order.destination}</td>
+                  <tr key={id}>
+                    <td>{id}</td>
+                    <td>{customer_name}</td>
+                    <td>{pickup}</td>
+                    <td>{destination}</td>
                     <td>{status}</td>
                     <td style={{ color: qtyColor }}>{quantity_loaded ?? 0}</td>
                     <td style={{ color: qtyColor }}>{quantity_delivered ?? 0}</td>
@@ -264,20 +288,22 @@ export default function DriverDashboard() {
                         Truck: {truckIns.status}
                         {truck_insurance_file && <> | <a href={`/uploads/insurance/${truck_insurance_file}`} target="_blank" rel="noopener noreferrer">View</a></>}
                       </div>
-                      <div style={{ color: trailerIns.color }}>
-                        Trailer: {trailerIns.status}
-                        {trailer_insurance_file && <> | <a href={`/uploads/insurance/${trailer_insurance_file}`} target="_blank" rel="noopener noreferrer">View</a></>}
-                      </div>
+                      {trailerIns && (
+                        <div style={{ color: trailerIns.color }}>
+                          Trailer: {trailerIns.status}
+                          {trailer_insurance_file && <> | <a href={`/uploads/insurance/${trailer_insurance_file}`} target="_blank" rel="noopener noreferrer">View</a></>}
+                        </div>
+                      )}
                     </td>
                     <td>{cash_spent ? `$${cash_spent}` : "$0"}</td>
                     <td>
-                      {canLoadOrder && <button onClick={() => handleLoadOrder(order.id)}>Load Order</button>}
-                      {canStartJourney && <button onClick={() => handleStartJourney(order.id)} style={{ marginLeft: 5 }}>Start Journey</button>}
-                      {canLogFuel && <button onClick={() => navigate(`/fuel/${order.id}`)} style={{ marginLeft: 5 }}>Log Fuel</button>}
-                      {canLogMileage && <button onClick={() => navigate(`/mileage/${order.id}`)} style={{ marginLeft: 5 }}>Log Mileage</button>}
-                      {canUploadPOD && <button onClick={() => navigate(`/documents/${order.id}`)} style={{ marginLeft: 5 }}>Upload POD</button>}
-                      {canMarkDelivered && <button onClick={() => handleMarkDelivered(order.id)} style={{ marginLeft: 5 }}>Mark Delivered</button>}
-                      <button onClick={() => navigate(`/expenses/${order.id}`)} style={{ marginLeft: 5 }}>Log Expenses</button>
+                      {canLoadOrder && <button onClick={() => handleLoadOrder(id)}>Load Order</button>}
+                      {canStartJourney && <button onClick={() => handleStartJourney(id)} style={{ marginLeft: 5 }}>Start Journey</button>}
+                      {canLogFuel && <button onClick={() => navigate(`/fuel/${id}`)} style={{ marginLeft: 5 }}>Log Fuel</button>}
+                      {canLogMileage && <button onClick={() => navigate(`/mileage/${id}`)} style={{ marginLeft: 5 }}>Log Mileage</button>}
+                      {canUploadPOD && <button onClick={() => navigate(`/documents/${id}`)} style={{ marginLeft: 5 }}>Upload POD</button>}
+                      {canLogCash && <button onClick={() => handleLogCash(id)} style={{ marginLeft: 5 }}>Log Cash</button>}
+                      {canMarkDelivered && <button onClick={() => handleMarkDelivered(id)} style={{ marginLeft: 5 }}>Mark Delivered</button>}
                     </td>
                   </tr>
                 );

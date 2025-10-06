@@ -17,7 +17,6 @@ router.post(
   validateTruckTrailerCompliance,
   ordersController.assignOrder
 );
-
 // Order lifecycle with validations
 router.post('/:id/loaded', authenticateToken, ordersController.markLoaded);
 router.post('/:id/enroute', authenticateToken, ordersController.markEnroute);

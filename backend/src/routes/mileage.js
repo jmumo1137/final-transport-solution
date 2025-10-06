@@ -1,32 +1,75 @@
+// src/routes/mileage.js
 const express = require('express');
+const db = require('../db');
 const router = express.Router();
-const db = require('../db'); // your DB instance
 
-// POST /api/mileage/:orderId
-router.post('/:orderId', async (req, res) => {
-  const { start_odometer, end_odometer } = req.body;
-  const { orderId } = req.params;
+// ---------- LOG MILEAGE ----------
+router.post('/:id', async (req, res) => {
+  const orderId = req.params.id;
+  const { start_odometer, end_odometer, quantity_delivered } = req.body;
 
-  if (start_odometer === undefined || end_odometer === undefined) {
-    return res.status(400).json({ error: 'Start and End odometer are required' });
-  }
-
-  if (end_odometer < start_odometer) {
-    return res.status(400).json({ error: 'End odometer must be >= start odometer' });
-  }
+  if (end_odometer == null)
+    return res.status(400).json({ message: 'End odometer is required.' });
 
   try {
-    const result = await db('mileage').insert({
+    const order = await db('orders').where({ id: orderId }).first();
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    const startValue = parseFloat(start_odometer ?? order.start_odometer ?? 0);
+    const endValue = parseFloat(end_odometer);
+
+    if (endValue < startValue)
+      return res.status(400).json({ message: 'End odometer cannot be less than start.' });
+
+    // Save record
+    await db('mileage').insert({
       order_id: orderId,
-      start_odometer,
-      end_odometer,
-      logged_at: new Date()
+      start_odometer: startValue,
+      end_odometer: endValue,
+      logged_at: new Date().toISOString(), // ✅ prevent invalid date
     });
 
-    res.json({ ok: true, mileageId: result[0] });
+    // Determine lifecycle progression
+    let newStatus = order.status;
+    if (order.status === 'loaded') newStatus = 'enroute';
+    else if (order.status === 'enroute') newStatus = 'delivered';
+
+    // Prepare order update object
+    const updateData = {
+      start_odometer: startValue,
+      end_odometer: endValue,
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    // If delivered, add quantity_delivered
+    if (newStatus === 'delivered' && quantity_delivered != null) {
+      updateData.quantity_delivered = quantity_delivered;
+      updateData.delivered_at = new Date().toISOString(); // ✅ valid timestamp
+    }
+
+    await db('orders').where({ id: orderId }).update(updateData);
+
+    res.json({
+      message: `Mileage logged successfully. Order now ${newStatus}.`,
+      details: updateData,
+    });
   } catch (err) {
-    console.error('Mileage insert error:', err);
-    res.status(500).json({ error: 'Failed to log mileage' });
+    console.error('❌ Mileage log error:', err);
+    res.status(500).json({ message: 'Failed to log mileage', error: err.message });
+  }
+});
+
+// ---------- GET MILEAGE RECORDS ----------
+router.get('/:id', async (req, res) => {
+  try {
+    const records = await db('mileage')
+      .where({ order_id: req.params.id })
+      .orderBy('logged_at', 'desc');
+    res.json(records);
+  } catch (err) {
+    console.error('❌ Fetch mileage error:', err);
+    res.status(500).json({ message: 'Failed to fetch mileage', error: err.message });
   }
 });
 

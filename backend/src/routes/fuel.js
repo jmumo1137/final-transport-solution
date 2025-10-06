@@ -2,8 +2,8 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const db = require('../db'); // Knex instance
 const fs = require('fs');
+const db = require('../db');
 
 const router = express.Router();
 
@@ -11,51 +11,57 @@ const router = express.Router();
 const uploadFolder = path.join(__dirname, '../uploads/fuel');
 if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder, { recursive: true });
 
-// Multer config
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadFolder),
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${file.originalname}`;
-    cb(null, unique);
-  },
+  destination: (_, __, cb) => cb(null, uploadFolder),
+  filename: (_, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const upload = multer({ storage });
 
-// ===================== UPLOAD FUEL =====================
-router.post('/:id/fuel', upload.single('fuel_receipt'), async (req, res) => {
+/**
+ * POST /api/fuel/:id
+ * Upload fuel receipt + liters + cost
+ */
+router.post('/:id', upload.single('fuel_receipt'), async (req, res) => {
   const orderId = req.params.id;
-  const { liters, cost } = req.body;
+  const { liters, cost, cash_spent } = req.body;
+
+  if (!req.file) return res.status(400).json({ message: 'Fuel receipt is required' });
+  if (!liters || !cost) return res.status(400).json({ message: 'Liters and cost are required' });
 
   try {
-    if (!req.file) return res.status(400).json({ message: 'Fuel receipt is required' });
-    if (!liters || !cost) return res.status(400).json({ message: 'Liters and cost are required' });
+    const totalCost = parseFloat(liters) * parseFloat(cost);
 
-    // Insert into fuel table
-    const insertData = {
+    const fuelData = {
       order_id: orderId,
       file_path: `/uploads/fuel/${req.file.filename}`,
       liters: parseFloat(liters),
-      cost: parseFloat(cost),
-      uploaded_at: new Date().toISOString()
+      cost: totalCost,
+      uploaded_at: new Date().toISOString(),
     };
 
-    await db('fuel').insert(insertData);
+    await db('fuel').insert(fuelData);
 
-    // Optionally update cash spent in orders table
-    const cashSpent = parseFloat(req.body.cash_spent || 0);
-    if (cashSpent > 0) {
-      await db('orders').where({ id: orderId }).update({ cash_spent: cashSpent });
-    }
+    // Update cash spent
+    const current = await db('orders').where({ id: orderId }).first('cash_spent');
+    const newTotal = parseFloat(current?.cash_spent || 0) + (parseFloat(cash_spent || 0) + totalCost);
 
-    res.json({ message: 'Fuel uploaded successfully', fuel: insertData });
+    await db('orders').where({ id: orderId }).update({
+      cash_spent: newTotal,
+      updated_at: new Date().toISOString(),
+    });
+
+    res.json({ message: '✅ Fuel record saved', fuel: fuelData, newTotal });
   } catch (err) {
-    console.error('Fuel upload error:', err);
+    console.error('❌ Fuel upload error:', err);
     res.status(500).json({ message: 'Failed to upload fuel', error: err.message });
   }
 });
 
-// ===================== GET FUEL RECORDS =====================
-router.get('/:id/fuel', async (req, res) => {
+/**
+ * GET /api/fuel/:id
+ * Fetch fuel logs for order
+ */
+router.get('/:id', async (req, res) => {
   const orderId = req.params.id;
   try {
     const fuelRecords = await db('fuel')
@@ -66,7 +72,7 @@ router.get('/:id/fuel', async (req, res) => {
 
     res.json({ fuelRecords, cashSpent: order?.cash_spent || 0 });
   } catch (err) {
-    console.error('Fetch fuel records error:', err);
+    console.error('❌ Fetch fuel records error:', err);
     res.status(500).json({ message: 'Failed to fetch fuel records' });
   }
 });

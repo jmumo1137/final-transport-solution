@@ -73,28 +73,29 @@ export default function OrdersList() {
     if (role === 'consignee') return; // Consignees cannot move orders
     try {
       let res;
+      const orderId = order.id;
+
       switch (order.status.toLowerCase()) {
         case 'created':
-          // Open assign modal instead
-          setAssignOrderId(order.id);
+          setAssignOrderId(orderId);
           return;
         case 'assigned':
-          res = await api.post(`/api/orders/${order.id}/loaded`);
+          res = await api.post(`/api/orders/${orderId}/loaded`);
           break;
         case 'loaded':
-          res = await api.post(`/api/orders/${order.id}/enroute`, { start_odometer: 0 });
+          res = await api.post(`/api/orders/${orderId}/enroute`);
           break;
         case 'enroute':
-          res = await api.post(`/api/orders/${order.id}/delivered`);
+          res = await api.post(`/api/orders/${orderId}/delivered`);
           break;
         case 'delivered':
-          res = await api.post(`/api/orders/${order.id}/awaiting-payment`);
+          res = await api.post(`/api/orders/${orderId}/awaiting-payment`);
           break;
         case 'awaiting_payment':
-          res = await api.post(`/api/orders/${order.id}/paid`);
+          res = await api.post(`/api/orders/${orderId}/paid`);
           break;
         case 'paid':
-          res = await api.post(`/api/orders/${order.id}/close`);
+          res = await api.post(`/api/orders/${orderId}/close`);
           break;
         case 'closed':
           alert('Order is already closed.');
@@ -103,7 +104,8 @@ export default function OrdersList() {
           alert('Unknown order status.');
           return;
       }
-      if (res?.data?.ok || res?.data) fetchOrders();
+
+      if (res?.data) fetchOrders();
     } catch (err) {
       console.error('Next step error:', err.response?.data || err.message);
       alert(err.response?.data?.error || 'Failed to move to next step.');
