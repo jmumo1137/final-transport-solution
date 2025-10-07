@@ -6,6 +6,7 @@ import { Tooltip } from 'react-tooltip';
 export default function Alerts() {
   const [alerts, setAlerts] = useState([]);
   const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -14,10 +15,13 @@ export default function Alerts() {
 
   const fetchAlerts = async () => {
     try {
+      setLoading(true);
       const res = await api.get('/api/alerts');
       setAlerts(res.data || []);
     } catch (err) {
       console.error('❌ Error fetching alerts:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -33,6 +37,20 @@ export default function Alerts() {
     if (entity_type === 'truck') navigate(`/trucks/${entity_id}`);
     if (entity_type === 'trailer') navigate(`/trailers/${entity_id}`);
     if (entity_type === 'driver') navigate(`/drivers/${entity_id}`);
+  };
+
+  // === Resend Email Handler ===
+  const handleResendEmail = async (alertId) => {
+    if (!window.confirm('Resend alert email to admin?')) return;
+
+    try {
+      await api.post(`/api/alerts/${alertId}/resend-email`);
+      alert('✅ Email resent successfully!');
+      fetchAlerts(); // refresh table
+    } catch (err) {
+      console.error('❌ Failed to resend email:', err);
+      alert('⚠️ Failed to resend email.');
+    }
   };
 
   return (
@@ -69,10 +87,17 @@ export default function Alerts() {
             <th className="p-3">Expiry Date</th>
             <th className="p-3">Status</th>
             <th className="p-3">Email</th>
+            <th className="p-3 text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {filteredAlerts.length > 0 ? (
+          {loading ? (
+            <tr>
+              <td colSpan="6" className="p-4 text-center text-gray-500">
+                Loading alerts...
+              </td>
+            </tr>
+          ) : filteredAlerts.length > 0 ? (
             filteredAlerts.map((alert, idx) => (
               <tr
                 key={idx}
@@ -121,6 +146,16 @@ export default function Alerts() {
                   )}
                 </td>
 
+                {/* Actions */}
+                <td className="p-3 text-center">
+                  <button
+                    onClick={() => handleResendEmail(alert.alert_id)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                  >
+                    Resend Email
+                  </button>
+                </td>
+
                 {/* Tooltip */}
                 <Tooltip
                   id={`alert-${idx}`}
@@ -148,7 +183,7 @@ export default function Alerts() {
             ))
           ) : (
             <tr>
-              <td colSpan="5" className="p-4 text-center text-gray-500">
+              <td colSpan="6" className="p-4 text-center text-gray-500">
                 No alerts found.
               </td>
             </tr>
