@@ -1,52 +1,160 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/api';
+import { useNavigate } from 'react-router-dom';
+import { Tooltip } from 'react-tooltip';
 
 export default function Alerts() {
-    const [alerts, setAlerts] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [filter, setFilter] = useState('all');
+  const navigate = useNavigate();
 
-    const fetchAlerts = async () => {
-        const res = await api.get('/alerts');
-        setAlerts(res.data);
-    };
+  useEffect(() => {
+    fetchAlerts();
+  }, []);
 
-    const resolveAlert = async (id) => {
-        await api.put(`/alerts/${id}/resolve`);
-        fetchAlerts();
-    };
+  const fetchAlerts = async () => {
+    try {
+      const res = await api.get('/api/alerts');
+      setAlerts(res.data || []);
+    } catch (err) {
+      console.error('❌ Error fetching alerts:', err);
+    }
+  };
 
-    useEffect(() => { fetchAlerts(); }, []);
+  const filteredAlerts = alerts.filter((a) => {
+    if (filter === 'all') return true;
+    if (filter === 'upcoming') return a.status === 'pending';
+    if (filter === 'expired') return a.status === 'expired';
+    return true;
+  });
 
-    return (
-        <div>
-            <h2>Alerts</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Entity Type</th>
-                        <th>Entity ID</th>
-                        <th>Alert Type</th>
-                        <th>Alert Date</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {alerts.map(a => (
-                        <tr key={a.id}>
-                            <td>{a.id}</td>
-                            <td>{a.entity_type}</td>
-                            <td>{a.entity_id}</td>
-                            <td>{a.alert_type}</td>
-                            <td>{a.alert_date}</td>
-                            <td>{a.status}</td>
-                            <td>
-                                {a.status === 'pending' && <button onClick={() => resolveAlert(a.id)}>Resolve</button>}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
+  const handleEntityClick = (alert) => {
+    const { entity_type, entity_id } = alert;
+    if (entity_type === 'truck') navigate(`/trucks/${entity_id}`);
+    if (entity_type === 'trailer') navigate(`/trailers/${entity_id}`);
+    if (entity_type === 'driver') navigate(`/drivers/${entity_id}`);
+  };
+
+  return (
+    <div className="p-6">
+      <h2 className="text-xl font-semibold mb-4">⚠️ Compliance Alerts</h2>
+
+      {/* Filter Buttons */}
+      <div className="flex gap-3 mb-4">
+        {['all', 'upcoming', 'expired'].map((type) => (
+          <button
+            key={type}
+            onClick={() => setFilter(type)}
+            className={`px-4 py-2 rounded capitalize ${
+              filter === type
+                ? type === 'expired'
+                  ? 'bg-red-500 text-white'
+                  : type === 'upcoming'
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-blue-600 text-white'
+                : 'bg-gray-200'
+            }`}
+          >
+            {type}
+          </button>
+        ))}
+      </div>
+
+      {/* Alerts Table */}
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-gray-100 text-left border-b">
+            <th className="p-3">Type</th>
+            <th className="p-3">Reference</th>
+            <th className="p-3">Expiry Date</th>
+            <th className="p-3">Status</th>
+            <th className="p-3">Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredAlerts.length > 0 ? (
+            filteredAlerts.map((alert, idx) => (
+              <tr
+                key={idx}
+                className="border-b hover:bg-gray-50 transition"
+                data-tooltip-id={`alert-${idx}`}
+              >
+                {/* Type */}
+                <td className="p-3 capitalize">
+                  {alert.alert_type?.replace('_', ' ') || '—'}
+                </td>
+
+                {/* Reference clickable */}
+                <td
+                  className="p-3 text-blue-600 cursor-pointer underline"
+                  onClick={() => handleEntityClick(alert)}
+                >
+                  {alert.reference_name || alert.reference || 'N/A'}
+                </td>
+
+                {/* Expiry */}
+                <td className="p-3">
+                  {alert.alert_date
+                    ? new Date(alert.alert_date).toLocaleDateString()
+                    : '—'}
+                </td>
+
+                {/* Status */}
+                <td
+                  className={`p-3 font-semibold ${
+                    alert.status === 'expired'
+                      ? 'text-red-500'
+                      : alert.status === 'pending'
+                      ? 'text-yellow-600'
+                      : 'text-green-600'
+                  }`}
+                >
+                  {alert.status || '—'}
+                </td>
+
+                {/* Email status */}
+                <td className="p-3">
+                  {alert.email_sent === 1 ? (
+                    <span className="text-green-600 font-semibold">📧 Sent</span>
+                  ) : (
+                    <span className="text-gray-500">⌛ Pending</span>
+                  )}
+                </td>
+
+                {/* Tooltip */}
+                <Tooltip
+                  id={`alert-${idx}`}
+                  place="top"
+                  style={{ backgroundColor: '#1f2937', color: '#fff' }}
+                >
+                  <div>
+                    <strong>{alert.alert_type?.replace('_', ' ').toUpperCase()}</strong>
+                    <br />
+                    Entity: {alert.entity_type}
+                    <br />
+                    Ref: {alert.reference_name || alert.reference || alert.entity_id}
+                    <br />
+                    Expiry: {alert.alert_date}
+                    <br />
+                    Status: {alert.status}
+                    <br />
+                    Email:{' '}
+                    {alert.email_sent === 1
+                      ? `✅ Sent (${alert.notified_at || 'N/A'})`
+                      : '⌛ Pending'}
+                  </div>
+                </Tooltip>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="5" className="p-4 text-center text-gray-500">
+                No alerts found.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 }

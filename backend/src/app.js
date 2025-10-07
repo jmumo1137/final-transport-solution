@@ -79,4 +79,7 @@ app.post('/api/webhook/payment', async (req, res) => {
   }
 });
 
+// ---------------- Cron Job ----------------
+require('./cron/alertsCron');
+
 module.exports = app;
