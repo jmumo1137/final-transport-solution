@@ -41,7 +41,7 @@ async function resolveReference(entity_type, entity_id) {
       return truck ? truck.plate_number : 'N/A';
     } else if (entity_type === 'trailer') {
       const trailer = await db('trailers').where({ trailer_id: entity_id }).first();
-      return trailer ? trailer.trailer_number : 'N/A';
+      return trailer ? trailer.plate_number : 'N/A';
     }
     return 'N/A';
   } catch (err) {

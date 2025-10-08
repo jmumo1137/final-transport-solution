@@ -32,12 +32,26 @@ export default function Alerts() {
     return true;
   });
 
-  const handleEntityClick = (alert) => {
-    const { entity_type, entity_id } = alert;
-    if (entity_type === 'truck') navigate(`/trucks/${entity_id}`);
-    if (entity_type === 'trailer') navigate(`/trailers/${entity_id}`);
-    if (entity_type === 'driver') navigate(`/drivers/${entity_id}`);
-  };
+ const handleEntityClick = (alert) => {
+  const { entity_type, reference_name, reference, entity_id } = alert;
+  const ref = reference_name || reference || entity_id;
+
+  if (!entity_type) return;
+
+  const lowerType = entity_type.toLowerCase();
+
+  // Redirect user to the correct page with query param
+  if (lowerType.includes('driver')) {
+    navigate(`/drivers?ref=${encodeURIComponent(ref)}`);
+  } else if (lowerType.includes('truck')) {
+    navigate(`/trucks?ref=${encodeURIComponent(ref)}`);
+  } else if (lowerType.includes('trailer')) {
+    navigate(`/trailers?ref=${encodeURIComponent(ref)}`);
+  } else {
+    alert(`Unknown entity type: ${entity_type}`);
+  }
+};
+
 
   // === Resend Email Handler ===
   const handleResendEmail = async (alertId) => {

@@ -1,25 +1,30 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FaPlus, FaSyncAlt } from "react-icons/fa";
+import { useSelector } from "react-redux";
+import { selectUsername } from "../features/auth/authSlice";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
-  const [formData, setFormData] = useState({
-    customer_name: "",
-    pickup: "",
-    destination: "",
-  });
+  const [formData, setFormData] = useState({ pickup: "", destination: "" });
   const [loading, setLoading] = useState(false);
-  const token = localStorage.getItem("token");
 
-  // ✅ Fetch all orders
+  const token = localStorage.getItem("token");
+  const username = useSelector(selectUsername);
+
+  // Fetch orders for logged-in customer ONLY
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const res = await axios.get("/api/orders", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setOrders(res.data);
+
+      const customerOrders = res.data.filter(
+        (order) => order.customer_name === username
+      );
+
+      setOrders(customerOrders);
     } catch (err) {
       console.error("Fetch error:", err);
       alert("Failed to load orders");
@@ -28,20 +33,21 @@ export default function Orders() {
     }
   };
 
-  // ✅ Create new order
   const createOrder = async (e) => {
     e.preventDefault();
-    if (!formData.customer_name || !formData.pickup || !formData.destination) {
-      alert("All fields are required");
+    if (!formData.pickup || !formData.destination) {
+      alert("Pickup and Destination are required");
       return;
     }
 
     try {
       setLoading(true);
-      await axios.post("/api/orders", formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setFormData({ customer_name: "", pickup: "", destination: "" });
+      await axios.post(
+        "/api/orders",
+        { ...formData, customer_name: username },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setFormData({ pickup: "", destination: "" });
       await fetchOrders();
       alert("✅ Order created successfully");
     } catch (err) {
@@ -52,17 +58,22 @@ export default function Orders() {
     }
   };
 
-  // ✅ Status update actions
-  const updateStatus = async (orderId, endpoint) => {
+  const updateStatus = async (orderId, action) => {
     try {
-      await axios.post(`/api/orders/${orderId}/${endpoint}`, {}, {
+      await axios.post(`/api/orders/${orderId}/${action}`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchOrders();
     } catch (err) {
-      console.error(`Update ${endpoint} error:`, err);
+      console.error(`${action} error:`, err);
       alert("Action failed");
     }
+  };
+
+  const requestPayment = (orderId) => {
+    if (!window.confirm("Proceed to request payment for this order?")) return;
+    updateStatus(orderId, "awaiting-payment");
+    alert("Payment request sent successfully");
   };
 
   useEffect(() => {
@@ -72,7 +83,7 @@ export default function Orders() {
   return (
     <div className="orders-page p-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Orders</h2>
+        <h2 className="text-2xl font-bold">My Orders</h2>
         <button
           onClick={fetchOrders}
           className="bg-gray-200 px-3 py-2 rounded-md flex items-center gap-2 hover:bg-gray-300"
@@ -88,10 +99,9 @@ export default function Orders() {
       >
         <input
           type="text"
-          placeholder="Customer Name"
-          value={formData.customer_name}
-          onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-          className="border p-2 rounded w-full md:w-1/4"
+          value={username}
+          disabled
+          className="border p-2 rounded w-full md:w-1/4 bg-gray-100 cursor-not-allowed"
         />
         <input
           type="text"
@@ -122,7 +132,6 @@ export default function Orders() {
           <thead className="bg-gray-100 text-left">
             <tr>
               <th className="p-2 border">#</th>
-              <th className="p-2 border">Customer</th>
               <th className="p-2 border">Pickup</th>
               <th className="p-2 border">Destination</th>
               <th className="p-2 border">Waybill</th>
@@ -135,66 +144,25 @@ export default function Orders() {
               orders.map((order, index) => (
                 <tr key={order.id} className="border-t">
                   <td className="p-2 border">{index + 1}</td>
-                  <td className="p-2 border">{order.customer_name}</td>
                   <td className="p-2 border">{order.pickup}</td>
                   <td className="p-2 border">{order.destination}</td>
                   <td className="p-2 border">{order.waybill || "-"}</td>
                   <td className="p-2 border capitalize">{order.status}</td>
-                  <td className="p-2 border">
+                  <td className="p-2 border flex flex-wrap gap-2">
                     {order.status === "created" && (
                       <button
-                        onClick={() => updateStatus(order.id, "assign")}
-                        className="bg-yellow-500 text-white px-2 py-1 rounded mr-2"
+                        onClick={() => updateStatus(order.id, "cancel")}
+                        className="bg-red-500 text-white px-2 py-1 rounded"
                       >
-                        Assign
+                        Cancel
                       </button>
                     )}
-                    {order.status === "assigned" && (
+                    {order.status === "delivered" && order.payment_status === "none" && (
                       <button
-                        onClick={() => updateStatus(order.id, "loaded")}
-                        className="bg-blue-500 text-white px-2 py-1 rounded mr-2"
-                      >
-                        Mark Loaded
-                      </button>
-                    )}
-                    {order.status === "loaded" && (
-                      <button
-                        onClick={() => updateStatus(order.id, "enroute")}
-                        className="bg-indigo-500 text-white px-2 py-1 rounded mr-2"
-                      >
-                        Start Trip
-                      </button>
-                    )}
-                    {order.status === "enroute" && (
-                      <button
-                        onClick={() => updateStatus(order.id, "delivered")}
-                        className="bg-green-600 text-white px-2 py-1 rounded mr-2"
-                      >
-                        Mark Delivered
-                      </button>
-                    )}
-                    {order.status === "delivered" && (
-                      <button
-                        onClick={() => updateStatus(order.id, "awaiting-payment")}
-                        className="bg-orange-500 text-white px-2 py-1 rounded mr-2"
+                        onClick={() => requestPayment(order.id)}
+                        className="bg-orange-500 text-white px-2 py-1 rounded"
                       >
                         Request Payment
-                      </button>
-                    )}
-                    {order.status === "awaiting_payment" && (
-                      <button
-                        onClick={() => updateStatus(order.id, "paid")}
-                        className="bg-green-700 text-white px-2 py-1 rounded mr-2"
-                      >
-                        Confirm Paid
-                      </button>
-                    )}
-                    {order.status === "paid" && (
-                      <button
-                        onClick={() => updateStatus(order.id, "close")}
-                        className="bg-gray-700 text-white px-2 py-1 rounded"
-                      >
-                        Close Order
                       </button>
                     )}
                   </td>
@@ -202,7 +170,7 @@ export default function Orders() {
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="text-center p-4">
+                <td colSpan="6" className="text-center p-4">
                   {loading ? "Loading orders..." : "No orders found"}
                 </td>
               </tr>

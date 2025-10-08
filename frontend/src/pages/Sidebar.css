@@ -8,6 +8,44 @@
     transition: width 0.3s ease;
     position: fixed;
 }
+/* Submenu container */
+.sidebar .submenu {
+    list-style: none;
+    padding-left: 15px;
+    margin-top: 5px;
+}
+
+/* Submenu items */
+.sidebar .submenu li {
+    margin-bottom: 8px;
+}
+
+/* Submenu links */
+.sidebar .submenu li a {
+    color: #ffd700; /* golden color for customer-specific items */
+    font-size: 14px;
+    display: block;
+    text-decoration: none;
+}
+
+/* Hover effect */
+.sidebar .submenu li a:hover {
+    text-decoration: underline;
+}
+
+/* Active submenu item */
+.sidebar .submenu li.active a {
+    font-weight: bold;
+    text-decoration: underline;
+    color: #ff6347; /* tomato red for active submenu */
+}
+
+/* Optional: arrow for parent items */
+.sidebar .menu-parent .arrow {
+    margin-left: 5px;
+    font-size: 10px;
+}
+
 
 .sidebar.collapsed {
     width: 60px;

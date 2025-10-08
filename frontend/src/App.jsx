@@ -14,7 +14,7 @@ import Documents from './pages/Documents';
 import Payment from './pages/Payment';
 import DriverDashboard from './pages/DriverDashboard';
 import DriverOrders from './pages/DriverOrders';
-import AddVehicle from './pages/AddVehicle';
+
 import Trucks from './pages/Trucks';
 import Trailers from './pages/Trailers';
 import Assignments from './pages/Assignments';
@@ -50,7 +50,6 @@ function App() {
           <Route path="/mileage/:id" element={token ? <Mileage /> : <Navigate to="/login" />} />
           <Route path="/documents/:id" element={token ? <Documents /> : <Navigate to="/login" />} />
           <Route path="/payment/:id" element={token ? <Payment /> : <Navigate to="/login" />} />
-          <Route path="/add-vehicle" element={token ? <AddVehicle /> : <Navigate to="/login" />} />
           <Route path="/trucks" element={token ? <Trucks /> : <Navigate to="/login" />} />
           <Route path="/trailers" element={token ? <Trailers /> : <Navigate to="/login" />} />
           <Route path="/assignments" element={token ? <Assignments /> : <Navigate to="/login" />} />

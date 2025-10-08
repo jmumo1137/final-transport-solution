@@ -76,79 +76,35 @@ export default function DriverDashboard() {
     }
   };
 
-  // ---------------------- Journey Actions ----------------------
-  const handleLoadOrder = async (orderId) => {
-    const qtyInput = prompt("Enter quantity loaded for this order:");
-    if (qtyInput === null) return;
-    const quantity_loaded = parseInt(qtyInput, 10);
-
-    if (isNaN(quantity_loaded) || quantity_loaded < 0) {
-      return alert("Invalid quantity. Please enter a number >= 0.");
-    }
-
-    try {
-      await api.post(`/api/orders/${orderId}/loaded`, { quantity_loaded });
-      alert("Order loaded successfully. You can now start the journey.");
-      fetchAssignedOrders();
-    } catch (err) {
-      console.error("Load Order error:", err.response?.data || err.message);
-      alert("Failed to load order. Try again.");
-    }
-  };
-
-  const handleStartJourney = async (orderId) => {
-    try {
-      await api.post(`/api/orders/${orderId}/enroute`);
-      fetchAssignedOrders();
-    } catch (err) {
-      console.error("Start Journey error:", err.response?.data || err.message);
-      alert("Failed to start journey");
-    }
-  };
-
-  const handleMarkDelivered = async (orderId) => {
-    try {
-      await api.post(`/api/orders/${orderId}/delivered`);
-      fetchAssignedOrders();
-    } catch (err) {
-      console.error("Mark Delivered error:", err.response?.data || err.message);
-      alert("Failed to mark delivered");
-    }
-  };
-
-  const handleLogCash = async (orderId) => {
-    const cashInput = prompt("Enter cash spent during journey:");
-    if (cashInput === null) return;
-    const cashSpent = parseFloat(cashInput);
-
-    if (isNaN(cashSpent) || cashSpent < 0) return alert("Invalid cash amount.");
-
-    try {
-      await api.post(`/api/orders/${orderId}/cash`, { cash_spent: cashSpent });
-      fetchAssignedOrders();
-      alert("Cash logged successfully");
-    } catch (err) {
-      console.error("Log Cash error:", err.response?.data || err.message);
-      alert("Failed to log cash");
-    }
-  };
-
   // ---------------------- Document Status ----------------------
+  const getExpiryTooltip = (date) => {
+    if (!date) return '';
+    const today = new Date();
+    const expDate = new Date(date);
+    const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? `Expires in ${diffDays} day(s)` : `Expired ${Math.abs(diffDays)} day(s) ago`;
+  };
+
+  const getUploadTooltip = (date) => {
+    if (!date) return '';
+    return `Uploaded: ${new Date(date).toLocaleDateString()}`;
+  };
+
   const checkStatus = (fileName, expiryDate = null) => {
-    if (!fileName) return { status: "Missing", color: "gray" };
+    if (!fileName) return { status: "Missing", color: "#f8f9fa" };
     if (expiryDate) {
       const today = new Date();
       const expiry = new Date(expiryDate);
       const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
-      if (diffDays < 0) return { status: "Expired", color: "red" };
-      if (diffDays <= 30) return { status: "Expiring Soon", color: "orange" };
+      if (diffDays < 0) return { status: "Expired", color: "#f8d7da" };
+      if (diffDays <= 30) return { status: "Expiring Soon", color: "#fff3cd" };
     }
-    return { status: "Valid", color: "green" };
+    return { status: "Valid", color: "#d4edda" };
   };
 
   // ---------------------- Render Driver Info ----------------------
   const renderDriverInfo = () => (
-    <div>
+    <div style={{ padding: '20px' }}>
       <h2>Driver Info & Compliance</h2>
       {driverInfo ? (
         <>
@@ -164,42 +120,59 @@ export default function DriverDashboard() {
             </thead>
             <tbody>
               {[
-                { key: "license_file", label: "License", expiry: "license_expiry_date" },
-                { key: "passport_photo", label: "Passport Photo", expiry: null },
-                { key: "good_conduct_certificate", label: "Good Conduct Certificate", expiry: null },
-                { key: "port_pass", label: "Port Pass", expiry: null },
+                { key: "license_file", label: "License", expiry: "license_expiry_date", uploaded: "license_file_uploaded_at" },
+                { key: "passport_photo", label: "Passport Photo", expiry: null, uploaded: "passport_photo_uploaded_at" },
+                { key: "good_conduct_certificate", label: "Good Conduct Certificate", expiry: null, uploaded: "good_conduct_certificate_uploaded_at" },
+                { key: "port_pass", label: "Port Pass", expiry: null, uploaded: "port_pass_uploaded_at" },
               ].map(doc => {
                 const fileName = driverInfo[doc.key];
                 const expiryDate = doc.expiry ? driverInfo[doc.expiry] : null;
+                const uploadedDate = doc.uploaded ? driverInfo[doc.uploaded] : null;
                 const { status, color } = checkStatus(fileName, expiryDate);
+
                 return (
-                  <tr key={doc.key}>
+                  <tr key={doc.key} style={{ backgroundColor: color }}>
                     <td>{doc.label}</td>
-                    <td>
+                    <td title={fileName ? getUploadTooltip(uploadedDate) : "Not uploaded"}>
                       {fileName ? (
-                        <a href={`/uploads/driver/${fileName}`} target="_blank" rel="noopener noreferrer">
-                          {fileName}
+                        <a 
+                          href={`http://localhost:5000/uploads/driver/${fileName}`} 
+                          target="_blank" rel="noreferrer"
+                        >
+                          {doc.label} 📎
                         </a>
                       ) : "Not uploaded"}
                     </td>
-                    <td>{expiryDate || "N/A"}</td>
+                    <td title={expiryDate ? getExpiryTooltip(expiryDate) : ""}>{expiryDate || "N/A"}</td>
                     <td>
                       <input type="file" name={doc.key} onChange={handleFileChange} />
                       <button onClick={() => handleUpload(doc.key)} disabled={!files[doc.key]} style={{ marginLeft: 5 }}>
                         Upload
                       </button>
                     </td>
-                    <td style={{ color }}>{status}</td>
+                    <td>{status}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
 
+          {driverInfo.license_expiry_date && (new Date(driverInfo.license_expiry_date) < new Date() ||
+            (new Date(driverInfo.license_expiry_date) - new Date()) / (1000*60*60*24) <= 30) && (
+            <div style={{ marginTop: 10 }}>
+              <button 
+                onClick={() => window.open('https://ntsa.go.ke/inspection-renewal', '_blank')}
+                style={{ padding: '5px 10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}
+              >
+                Renew License
+              </button>
+            </div>
+          )}
+
           <div style={{ marginTop: 20 }}>
             <strong>Username: </strong> {driverInfo.username}
           </div>
-          <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 10 }}>
             <label>
               License Number:
               <input type="text" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} style={{ marginLeft: 5 }} />
@@ -223,7 +196,7 @@ export default function DriverDashboard() {
     };
 
     return (
-      <div>
+      <div style={{ padding: '20px' }}>
         <h2>Assigned Orders</h2>
         {assignedOrders.length > 0 ? (
           <table border="1" cellPadding="5" style={{ width: "100%" }}>
@@ -244,21 +217,10 @@ export default function DriverDashboard() {
             <tbody>
               {assignedOrders.map(order => {
                 const {
-                  id,
-                  customer_name,
-                  pickup,
-                  destination,
-                  status,
-                  quantity_loaded,
-                  quantity_delivered,
-                  pod_file,
-                  cash_spent,
-                  truck_id,
-                  trailer_id,
-                  truck_insurance_file,
-                  truck_insurance_expiry,
-                  trailer_insurance_file,
-                  trailer_insurance_expiry
+                  id, customer_name, pickup, destination, status,
+                  quantity_loaded, quantity_delivered, pod_file, cash_spent,
+                  truck_id, trailer_id, truck_insurance_file, truck_insurance_expiry,
+                  trailer_insurance_file, trailer_insurance_expiry
                 } = order;
 
                 const canLoadOrder = status === "assigned" && truck_id;
@@ -286,12 +248,12 @@ export default function DriverDashboard() {
                     <td>
                       <div style={{ color: truckIns.color }}>
                         Truck: {truckIns.status}
-                        {truck_insurance_file && <> | <a href={`/uploads/insurance/${truck_insurance_file}`} target="_blank" rel="noopener noreferrer">View</a></>}
+                        {truck_insurance_file && <> | <a href={`/uploads/insurance/${truck_insurance_file}`} target="_blank" rel="noopener noreferrer" title={`Uploaded: ${new Date(order.truck_insurance_uploaded_at).toLocaleDateString()}`}>View</a></>}
                       </div>
                       {trailerIns && (
                         <div style={{ color: trailerIns.color }}>
                           Trailer: {trailerIns.status}
-                          {trailer_insurance_file && <> | <a href={`/uploads/insurance/${trailer_insurance_file}`} target="_blank" rel="noopener noreferrer">View</a></>}
+                          {trailer_insurance_file && <> | <a href={`/uploads/insurance/${trailer_insurance_file}`} target="_blank" rel="noopener noreferrer" title={`Uploaded: ${new Date(order.trailer_insurance_uploaded_at).toLocaleDateString()}`}>View</a></>}
                         </div>
                       )}
                     </td>

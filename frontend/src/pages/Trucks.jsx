@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/api';
+import { useLocation } from 'react-router-dom';
 
 export default function Trucks() {
   const [trucks, setTrucks] = useState([]);
+  const location = useLocation();
 
   // Add Truck form state
   const [plateNumber, setPlateNumber] = useState('');
@@ -24,6 +26,21 @@ export default function Trucks() {
   };
 
   useEffect(() => { fetchTrucks(); }, []);
+
+  // 🟡 Highlight truck referenced via Alerts (via ?ref=KDA123H)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref');
+    if (ref && trucks.length > 0) {
+      const el = document.getElementById(`ref-${ref}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'background-color 0.5s ease';
+        el.style.backgroundColor = '#fff3cd'; // highlight color
+        setTimeout(() => (el.style.backgroundColor = ''), 4000);
+      }
+    }
+  }, [location, trucks]);
 
   // Add new truck
   const addTruck = async () => {
@@ -61,10 +78,21 @@ export default function Trucks() {
     const expiringSoonDays = 30;
 
     const isExpired = (date) => !date ? false : new Date(date) < today;
-    const isExpiringSoon = (date) => !date ? false : ((new Date(date) - today)/(1000*60*60*24)) <= expiringSoonDays;
+    const isExpiringSoon = (date) =>
+      !date ? false : ((new Date(date) - today) / (1000 * 60 * 60 * 24)) <= expiringSoonDays;
 
-    if (isExpired(truck.insurance_expiry_date) || isExpired(truck.comesa_expiry_date) || isExpired(truck.inspection_expiry_date)) return 'Expired';
-    if (isExpiringSoon(truck.insurance_expiry_date) || isExpiringSoon(truck.comesa_expiry_date) || isExpiringSoon(truck.inspection_expiry_date)) return 'Expiring Soon';
+    if (
+      isExpired(truck.insurance_expiry_date) ||
+      isExpired(truck.comesa_expiry_date) ||
+      isExpired(truck.inspection_expiry_date)
+    ) return 'Expired';
+
+    if (
+      isExpiringSoon(truck.insurance_expiry_date) ||
+      isExpiringSoon(truck.comesa_expiry_date) ||
+      isExpiringSoon(truck.inspection_expiry_date)
+    ) return 'Expiring Soon';
+
     return 'Valid';
   };
 
@@ -79,8 +107,10 @@ export default function Trucks() {
     if (!date) return '';
     const today = new Date();
     const expDate = new Date(date);
-    const diffDays = Math.ceil((expDate - today) / (1000*60*60*24));
-    return diffDays >= 0 ? `Expires in ${diffDays} day(s)` : `Expired ${Math.abs(diffDays)} day(s) ago`;
+    const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0
+      ? `Expires in ${diffDays} day(s)`
+      : `Expired ${Math.abs(diffDays)} day(s) ago`;
   };
 
   return (
@@ -92,37 +122,37 @@ export default function Trucks() {
         <h3>Add Truck</h3>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-end' }}>
           <div>
-            <label>Plate Number:</label><br/>
+            <label>Plate Number:</label><br />
             <input value={plateNumber} onChange={e => setPlateNumber(e.target.value)} />
           </div>
 
           <div>
-            <label>Insurance Expiry:</label><br/>
+            <label>Insurance Expiry:</label><br />
             <input type="date" value={insuranceExpiry} onChange={e => setInsuranceExpiry(e.target.value)} />
           </div>
 
           <div>
-            <label>Insurance File:</label><br/>
+            <label>Insurance File:</label><br />
             <input type="file" onChange={e => setInsuranceFile(e.target.files[0])} />
           </div>
 
           <div>
-            <label>COMESA Number:</label><br/>
+            <label>COMESA Number:</label><br />
             <input value={comesaNumber} onChange={e => setComesaNumber(e.target.value)} />
           </div>
 
           <div>
-            <label>COMESA Expiry:</label><br/>
+            <label>COMESA Expiry:</label><br />
             <input type="date" value={comesaExpiry} onChange={e => setComesaExpiry(e.target.value)} />
           </div>
 
           <div>
-            <label>Inspection Expiry:</label><br/>
+            <label>Inspection Expiry:</label><br />
             <input type="date" value={inspectionExpiry} onChange={e => setInspectionExpiry(e.target.value)} />
           </div>
 
           <div>
-            <label>Inspection File:</label><br/>
+            <label>Inspection File:</label><br />
             <input type="file" onChange={e => setInspectionFile(e.target.files[0])} />
           </div>
 
@@ -150,7 +180,11 @@ export default function Trucks() {
           {trucks.map(truck => {
             const status = getTruckStatus(truck);
             return (
-              <tr key={truck.truck_id} style={{ backgroundColor: getRowColor(status) }}>
+              <tr
+                id={`ref-${truck.plate_number}`}
+                key={truck.truck_id}
+                style={{ backgroundColor: getRowColor(status) }}
+              >
                 <td>{truck.truck_id}</td>
                 <td>{truck.plate_number}</td>
                 <td title={getExpiryTooltip(truck.insurance_expiry_date)}>
@@ -158,12 +192,9 @@ export default function Trucks() {
                 </td>
                 <td>{truck.comesa_number || '-'}</td>
                 <td title={getExpiryTooltip(truck.comesa_expiry_date)}>
-                  {truck.comesa_expiry_date || '-'}
-                </td>
+                  {truck.comesa_expiry_date || '-'}</td>
                 <td title={getExpiryTooltip(truck.inspection_expiry_date)}>
                   {truck.inspection_expiry_date}
-
-                  {/* NTSA button for Expired or Expiring Soon */}
                   {(status === 'Expired' || status === 'Expiring Soon') && (
                     <button
                       onClick={() => window.open('https://ntsa.go.ke/inspection-renewal', '_blank')}
@@ -185,9 +216,10 @@ export default function Trucks() {
                 <td>{status}</td>
                 <td>
                   {truck.insurance_file && (
-                    <a 
-                      href={`http://localhost:5000/uploads/trucks/${truck.insurance_file}`} 
-                      target="_blank" rel="noreferrer"
+                    <a
+                      href={`http://localhost:5000/uploads/trucks/${truck.insurance_file}`}
+                      target="_blank"
+                      rel="noreferrer"
                       title="View Insurance Document"
                     >
                       Insurance 📎
@@ -195,9 +227,10 @@ export default function Trucks() {
                   )}
                   {' '}
                   {truck.inspection_file && (
-                    <a 
-                      href={`http://localhost:5000/uploads/trucks/${truck.inspection_file}`} 
-                      target="_blank" rel="noreferrer"
+                    <a
+                      href={`http://localhost:5000/uploads/trucks/${truck.inspection_file}`}
+                      target="_blank"
+                      rel="noreferrer"
                       title="View Inspection Document"
                     >
                       Inspection 📎

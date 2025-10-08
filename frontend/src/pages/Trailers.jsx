@@ -1,139 +1,244 @@
-import React, { useEffect, useState } from 'react';
-import api from '../api/api';
+import React, { useEffect, useState, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import api from "../api/api";
 
 export default function Trailers() {
   const [trailers, setTrailers] = useState([]);
+  const [formData, setFormData] = useState({
+    plate_number: "",
+    insurance_expiry_date: "",
+    insurance_file: null,
+    comesa_number: "",
+    comesa_expiry_date: "",
+    inspection_expiry_date: "",
+    inspection_file: null,
+  });
 
-  // Add Trailer form state
-  const [plateNumber, setPlateNumber] = useState('');
-  const [insuranceExpiry, setInsuranceExpiry] = useState('');
-  const [insuranceFile, setInsuranceFile] = useState(null);
-  const [comesaNumber, setComesaNumber] = useState('');
-  const [comesaExpiry, setComesaExpiry] = useState('');
-  const [inspectionExpiry, setInspectionExpiry] = useState('');
-  const [inspectionFile, setInspectionFile] = useState(null);
+  const tableRef = useRef(null);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const focusId = searchParams.get("id");
+  const focusPlate = searchParams.get("plate");
 
-  // Fetch trailers
+  // Fetch all trailers
   const fetchTrailers = async () => {
     try {
-      const res = await api.get('/api/trailers');
+      const res = await api.get("/api/trailers");
       setTrailers(res.data);
     } catch (err) {
-      console.error('Fetch trailers error:', err);
+      console.error("Error fetching trailers:", err);
     }
   };
 
-  useEffect(() => { fetchTrailers(); }, []);
+  useEffect(() => {
+    fetchTrailers();
+  }, []);
 
-  // Add trailer
-  const addTrailer = async () => {
+  // Scroll to and highlight focused trailer
+  useEffect(() => {
+    if (!trailers.length) return;
+
+    const row = tableRef.current?.querySelector(
+      focusId
+        ? `[data-id="${focusId}"]`
+        : focusPlate
+        ? `[data-plate="${focusPlate}"]`
+        : null
+    );
+
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.style.outline = "3px solid #007bff";
+      row.style.transition = "outline 0.5s ease-in-out";
+      setTimeout(() => (row.style.outline = "none"), 2500);
+    }
+  }, [trailers, focusId, focusPlate]);
+
+  // Handle input changes
+  const handleChange = (e) => {
+    const { name, value, files } = e.target;
+    setFormData({
+      ...formData,
+      [name]: files ? files[0] : value,
+    });
+  };
+
+  // Add new trailer
+  const handleAddTrailer = async () => {
     try {
-      const formData = new FormData();
-      formData.append('plate_number', plateNumber);
-      formData.append('insurance_expiry_date', insuranceExpiry);
-      formData.append('insurance_file', insuranceFile);
-      formData.append('comesa_number', comesaNumber);
-      formData.append('comesa_expiry_date', comesaExpiry);
-      formData.append('inspection_expiry_date', inspectionExpiry);
-      formData.append('inspection_file', inspectionFile);
+      const data = new FormData();
+      Object.keys(formData).forEach((key) => data.append(key, formData[key]));
 
-      await api.post('/api/trailers', formData);
+      await api.post("/api/trailers", data);
+      alert("Trailer added successfully!");
 
-      // Reset form
-      setPlateNumber('');
-      setInsuranceExpiry('');
-      setInsuranceFile(null);
-      setComesaNumber('');
-      setComesaExpiry('');
-      setInspectionExpiry('');
-      setInspectionFile(null);
+      setFormData({
+        plate_number: "",
+        insurance_expiry_date: "",
+        insurance_file: null,
+        comesa_number: "",
+        comesa_expiry_date: "",
+        inspection_expiry_date: "",
+        inspection_file: null,
+      });
 
       fetchTrailers();
     } catch (err) {
-      console.error('Add trailer error:', err);
-      alert(err.response?.data?.message || 'Failed to add trailer');
+      console.error("Error adding trailer:", err);
+      alert(err.response?.data?.message || "Failed to add trailer");
     }
   };
 
-  // Compute trailer status
-  const getTrailerStatus = (trailer) => {
+  // Status logic
+  const computeStatus = (t) => {
     const today = new Date();
-    const expiringSoonDays = 30;
+    const soon = 30; // days
+    const expired = (d) => d && new Date(d) < today;
+    const soonExp = (d) =>
+      d && (new Date(d) - today) / (1000 * 60 * 60 * 24) <= soon;
 
-    const isExpired = (date) => !date ? false : new Date(date) < today;
-    const isExpiringSoon = (date) => !date ? false : ((new Date(date) - today)/(1000*60*60*24)) <= expiringSoonDays;
-
-    if (isExpired(trailer.insurance_expiry_date) || isExpired(trailer.comesa_expiry_date) || isExpired(trailer.inspection_expiry_date)) return 'Expired';
-    if (isExpiringSoon(trailer.insurance_expiry_date) || isExpiringSoon(trailer.comesa_expiry_date) || isExpiringSoon(trailer.inspection_expiry_date)) return 'Expiring Soon';
-    return 'Valid';
+    if (
+      expired(t.insurance_expiry_date) ||
+      expired(t.comesa_expiry_date) ||
+      expired(t.inspection_expiry_date)
+    )
+      return "Expired";
+    if (
+      soonExp(t.insurance_expiry_date) ||
+      soonExp(t.comesa_expiry_date) ||
+      soonExp(t.inspection_expiry_date)
+    )
+      return "Expiring Soon";
+    return "Valid";
   };
 
   const getRowColor = (status) => {
-    if (status === 'Valid') return '#d4edda';
-    if (status === 'Expiring Soon') return '#fff3cd';
-    if (status === 'Expired') return '#f8d7da';
-    return '#ffffff';
+    switch (status) {
+      case "Expired":
+        return "#f8d7da";
+      case "Expiring Soon":
+        return "#fff3cd";
+      default:
+        return "#d4edda";
+    }
   };
 
-  const getExpiryTooltip = (date) => {
-    if (!date) return '';
-    const today = new Date();
-    const expDate = new Date(date);
-    const diffDays = Math.ceil((expDate - today) / (1000*60*60*24));
-    return diffDays >= 0 ? `Expires in ${diffDays} day(s)` : `Expired ${Math.abs(diffDays)} day(s) ago`;
+  const expiryTooltip = (date) => {
+    if (!date) return "";
+    const diff = Math.ceil(
+      (new Date(date) - new Date()) / (1000 * 60 * 60 * 24)
+    );
+    return diff >= 0
+      ? `Expires in ${diff} day(s)`
+      : `Expired ${Math.abs(diff)} day(s) ago`;
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Trailers</h2>
+    <div style={{ padding: 20 }}>
+      <h2>Trailer Management</h2>
 
-      {/* Add Trailer Form */}
-      <div style={{ marginBottom: '20px', border: '1px solid #ccc', padding: 10, borderRadius: 5 }}>
-        <h3>Add Trailer</h3>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-end' }}>
+      {/* Add Trailer Section */}
+      <div
+        style={{
+          marginBottom: 20,
+          padding: 15,
+          border: "1px solid #ccc",
+          borderRadius: 6,
+          background: "#fafafa",
+        }}
+      >
+        <h3>Add New Trailer</h3>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "15px",
+            alignItems: "flex-end",
+          }}
+        >
           <div>
-            <label>Plate Number:</label><br/>
-            <input value={plateNumber} onChange={e => setPlateNumber(e.target.value)} />
+            <label>Plate Number:</label>
+            <input
+              name="plate_number"
+              value={formData.plate_number}
+              onChange={handleChange}
+            />
           </div>
 
           <div>
-            <label>Insurance Expiry:</label><br/>
-            <input type="date" value={insuranceExpiry} onChange={e => setInsuranceExpiry(e.target.value)} />
+            <label>Insurance Expiry:</label>
+            <input
+              type="date"
+              name="insurance_expiry_date"
+              value={formData.insurance_expiry_date}
+              onChange={handleChange}
+            />
           </div>
 
           <div>
-            <label>Insurance File:</label><br/>
-            <input type="file" onChange={e => setInsuranceFile(e.target.files[0])} />
+            <label>Insurance File:</label>
+            <input type="file" name="insurance_file" onChange={handleChange} />
           </div>
 
           <div>
-            <label>COMESA Number:</label><br/>
-            <input value={comesaNumber} onChange={e => setComesaNumber(e.target.value)} />
+            <label>COMESA Number:</label>
+            <input
+              name="comesa_number"
+              value={formData.comesa_number}
+              onChange={handleChange}
+            />
           </div>
 
           <div>
-            <label>COMESA Expiry:</label><br/>
-            <input type="date" value={comesaExpiry} onChange={e => setComesaExpiry(e.target.value)} />
+            <label>COMESA Expiry:</label>
+            <input
+              type="date"
+              name="comesa_expiry_date"
+              value={formData.comesa_expiry_date}
+              onChange={handleChange}
+            />
           </div>
 
           <div>
-            <label>Inspection Expiry:</label><br/>
-            <input type="date" value={inspectionExpiry} onChange={e => setInspectionExpiry(e.target.value)} />
+            <label>Inspection Expiry:</label>
+            <input
+              type="date"
+              name="inspection_expiry_date"
+              value={formData.inspection_expiry_date}
+              onChange={handleChange}
+            />
           </div>
 
           <div>
-            <label>Inspection File:</label><br/>
-            <input type="file" onChange={e => setInspectionFile(e.target.files[0])} />
+            <label>Inspection File:</label>
+            <input type="file" name="inspection_file" onChange={handleChange} />
           </div>
 
           <div>
-            <button onClick={addTrailer} style={{ padding: '5px 15px', marginTop: 18 }}>Add Trailer</button>
+            <button
+              onClick={handleAddTrailer}
+              style={{
+                padding: "6px 15px",
+                backgroundColor: "#007bff",
+                color: "#fff",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              Add Trailer
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Trailers Table */}
-      <table border="1" cellPadding="5" style={{ width: '100%' }}>
+      {/* Trailer Table */}
+      <table
+        ref={tableRef}
+        border="1"
+        cellPadding="6"
+        style={{ width: "100%", borderCollapse: "collapse" }}
+      >
         <thead>
           <tr>
             <th>ID</th>
@@ -147,36 +252,43 @@ export default function Trailers() {
           </tr>
         </thead>
         <tbody>
-          {trailers.map(trailer => {
-            const status = getTrailerStatus(trailer);
+          {trailers.map((t) => {
+            const status = computeStatus(t);
             return (
-              <tr key={trailer.trailer_id} style={{ backgroundColor: getRowColor(status) }}>
-                <td>{trailer.trailer_id}</td>
-                <td>{trailer.plate_number}</td>
-                <td title={getExpiryTooltip(trailer.insurance_expiry_date)}>
-                  {trailer.insurance_expiry_date}
+              <tr
+                key={t.trailer_id}
+                data-id={t.trailer_id}
+                data-plate={t.plate_number}
+                style={{
+                  backgroundColor: getRowColor(status),
+                  transition: "0.2s",
+                }}
+              >
+                <td>{t.trailer_id}</td>
+                <td>{t.plate_number}</td>
+                <td title={expiryTooltip(t.insurance_expiry_date)}>
+                  {t.insurance_expiry_date || "-"}
                 </td>
-                <td>{trailer.comesa_number || '-'}</td>
-                <td title={getExpiryTooltip(trailer.comesa_expiry_date)}>
-                  {trailer.comesa_expiry_date || '-'}
+                <td>{t.comesa_number || "-"}</td>
+                <td title={expiryTooltip(t.comesa_expiry_date)}>
+                  {t.comesa_expiry_date || "-"}
                 </td>
-                <td title={getExpiryTooltip(trailer.inspection_expiry_date)}>
-                  {trailer.inspection_expiry_date}
-
-                  {/* NTSA button for Expired or Expiring Soon */}
-                  {(status === 'Expired' || status === 'Expiring Soon') && (
+                <td title={expiryTooltip(t.inspection_expiry_date)}>
+                  {t.inspection_expiry_date || "-"}
+                  {(status === "Expired" || status === "Expiring Soon") && (
                     <button
-                      onClick={() => window.open('https://ntsa.go.ke/inspection-renewal', '_blank')}
+                      onClick={() =>
+                        window.open("https://ntsa.go.ke/inspection-renewal")
+                      }
                       style={{
-                        marginLeft: 8,
-                        padding: '3px 8px',
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
+                        marginLeft: 10,
+                        padding: "3px 8px",
+                        backgroundColor: "#007bff",
+                        color: "#fff",
+                        border: "none",
                         borderRadius: 3,
-                        cursor: 'pointer'
+                        cursor: "pointer",
                       }}
-                      title="Go to NTSA Inspection Renewal"
                     >
                       Renew NTSA
                     </button>
@@ -184,21 +296,21 @@ export default function Trailers() {
                 </td>
                 <td>{status}</td>
                 <td>
-                  {trailer.insurance_file && (
-                    <a 
-                      href={`http://localhost:5000/uploads/trailers/${trailer.insurance_file}`} 
-                      target="_blank" rel="noreferrer"
-                      title="View Insurance Document"
+                  {t.insurance_file && (
+                    <a
+                      href={`http://localhost:5000/uploads/trailers/${t.insurance_file}`}
+                      target="_blank"
+                      rel="noreferrer"
                     >
                       Insurance 📎
                     </a>
                   )}
-                  {' '}
-                  {trailer.inspection_file && (
-                    <a 
-                      href={`http://localhost:5000/uploads/trailers/${trailer.inspection_file}`} 
-                      target="_blank" rel="noreferrer"
-                      title="View Inspection Document"
+                  {"  "}
+                  {t.inspection_file && (
+                    <a
+                      href={`http://localhost:5000/uploads/trailers/${t.inspection_file}`}
+                      target="_blank"
+                      rel="noreferrer"
                     >
                       Inspection 📎
                     </a>

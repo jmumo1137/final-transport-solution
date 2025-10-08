@@ -2,38 +2,47 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import api from '../api/api';
-import { selectUserRole } from '../features/auth/authSlice';
+import { selectUserRole, selectUsername } from '../features/auth/authSlice';
 
 export default function OrdersList() {
+  const role = useSelector(selectUserRole);
+  const username = useSelector(selectUsername);
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [assignOrderId, setAssignOrderId] = useState(null);
 
+  // Assignment modal state
+  const [assignOrderId, setAssignOrderId] = useState(null);
   const [drivers, setDrivers] = useState([]);
   const [driverUsername, setDriverUsername] = useState('');
   const [driverSuggestions, setDriverSuggestions] = useState([]);
   const [selectedDriverId, setSelectedDriverId] = useState(null);
-
   const [trucks, setTrucks] = useState([]);
   const [selectedTruck, setSelectedTruck] = useState('');
   const [trailers, setTrailers] = useState([]);
   const [selectedTrailer, setSelectedTrailer] = useState('');
 
-  const role = useSelector(selectUserRole);
+  // Create order form (for customers)
+  const [formData, setFormData] = useState({ pickup: '', destination: '' });
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
   useEffect(() => {
     fetchOrders();
-    if (['dispatcher', 'admin'].includes(role)) {
-      fetchResources();
-    }
+    if (['dispatcher', 'admin'].includes(role)) fetchResources();
   }, [role]);
 
   const fetchOrders = async () => {
+    setLoading(true);
     try {
       const res = await api.get('/api/orders');
-      setOrders(res.data);
+      let filtered = res.data;
+      if (role === 'customer') {
+        filtered = res.data.filter(o => o.customer_name === username);
+      }
+      setOrders(filtered);
     } catch (err) {
       console.error('Error fetching orders:', err);
+      alert('Failed to load orders.');
     } finally {
       setLoading(false);
     }
@@ -46,7 +55,6 @@ export default function OrdersList() {
         api.get('/api/trucks/available'),
         api.get('/api/trailers/available'),
       ]);
-
       setDrivers(driversRes.data);
       setTrucks(trucksRes.data);
       setTrailers(trailersRes.data);
@@ -55,8 +63,8 @@ export default function OrdersList() {
     }
   };
 
-  // 🧭 STEP LOGIC
-  const getNextStepLabel = (status) => {
+  // NEXT STEP LOGIC
+  const getNextStepLabel = status => {
     switch (status?.toLowerCase()) {
       case 'created': return 'Assign Driver';
       case 'assigned': return 'Mark Loaded';
@@ -69,42 +77,22 @@ export default function OrdersList() {
     }
   };
 
-  const handleNextStep = async (order) => {
-    if (role === 'consignee') return; // Consignees cannot move orders
+  const handleNextStep = async order => {
+    if (role === 'customer') return;
+    const orderId = order.id;
     try {
       let res;
-      const orderId = order.id;
-
       switch (order.status.toLowerCase()) {
-        case 'created':
-          setAssignOrderId(orderId);
-          return;
-        case 'assigned':
-          res = await api.post(`/api/orders/${orderId}/loaded`);
-          break;
-        case 'loaded':
-          res = await api.post(`/api/orders/${orderId}/enroute`);
-          break;
-        case 'enroute':
-          res = await api.post(`/api/orders/${orderId}/delivered`);
-          break;
-        case 'delivered':
-          res = await api.post(`/api/orders/${orderId}/awaiting-payment`);
-          break;
-        case 'awaiting_payment':
-          res = await api.post(`/api/orders/${orderId}/paid`);
-          break;
-        case 'paid':
-          res = await api.post(`/api/orders/${orderId}/close`);
-          break;
-        case 'closed':
-          alert('Order is already closed.');
-          return;
-        default:
-          alert('Unknown order status.');
-          return;
+        case 'created': setAssignOrderId(orderId); return;
+        case 'assigned': res = await api.post(`/api/orders/${orderId}/loaded`); break;
+        case 'loaded': res = await api.post(`/api/orders/${orderId}/enroute`); break;
+        case 'enroute': res = await api.post(`/api/orders/${orderId}/delivered`); break;
+        case 'delivered': res = await api.post(`/api/orders/${orderId}/awaiting-payment`); break;
+        case 'awaiting_payment': res = await api.post(`/api/orders/${orderId}/paid`); break;
+        case 'paid': res = await api.post(`/api/orders/${orderId}/close`); break;
+        case 'closed': alert('Order is already closed.'); return;
+        default: alert('Unknown order status.'); return;
       }
-
       if (res?.data) fetchOrders();
     } catch (err) {
       console.error('Next step error:', err.response?.data || err.message);
@@ -112,12 +100,11 @@ export default function OrdersList() {
     }
   };
 
-  // 🔍 DRIVER AUTOCOMPLETE
-  const handleDriverChange = async (e) => {
+  // DRIVER AUTOCOMPLETE
+  const handleDriverChange = async e => {
     const value = e.target.value;
     setDriverUsername(value);
     setSelectedDriverId(null);
-
     if (value.length >= 1) {
       try {
         const res = await api.get(`/api/users/drivers?search=${value}`);
@@ -125,12 +112,10 @@ export default function OrdersList() {
       } catch {
         setDriverSuggestions([]);
       }
-    } else {
-      setDriverSuggestions([]);
-    }
+    } else setDriverSuggestions([]);
   };
 
-  const handleSelectDriver = (driver) => {
+  const handleSelectDriver = driver => {
     setDriverUsername(driver.username);
     setSelectedDriverId(driver.id);
     setDriverSuggestions([]);
@@ -141,7 +126,6 @@ export default function OrdersList() {
       alert('Driver and Truck are required!');
       return;
     }
-
     try {
       await api.post(`/api/orders/${assignOrderId}/assign`, {
         driver_id: selectedDriverId,
@@ -162,12 +146,59 @@ export default function OrdersList() {
     }
   };
 
+  const handleCreateOrder = async e => {
+    e.preventDefault();
+    if (!formData.pickup || !formData.destination) {
+      alert('Pickup and Destination required.');
+      return;
+    }
+    setCreatingOrder(true);
+    try {
+      await api.post('/api/orders', { ...formData, customer_name: username });
+      alert('Order created successfully!');
+      setFormData({ pickup: '', destination: '' });
+      fetchOrders();
+    } catch (err) {
+      console.error('Create order error:', err);
+      alert('Failed to create order.');
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
+
   if (loading) return <p>Loading orders...</p>;
 
-  // 🧩 RENDER
   return (
     <div style={{ padding: 20 }}>
       <h2>Orders</h2>
+
+      {role === 'customer' && (
+        <form onSubmit={handleCreateOrder} style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={username}
+            disabled
+            style={{ padding: 5, width: '200px', background: '#eee' }}
+          />
+          <input
+            type="text"
+            placeholder="Pickup"
+            value={formData.pickup}
+            onChange={e => setFormData({ ...formData, pickup: e.target.value })}
+            style={{ padding: 5, width: '200px' }}
+          />
+          <input
+            type="text"
+            placeholder="Destination"
+            value={formData.destination}
+            onChange={e => setFormData({ ...formData, destination: e.target.value })}
+            style={{ padding: 5, width: '200px' }}
+          />
+          <button type="submit" disabled={creatingOrder} style={{ padding: '5px 15px' }}>
+            {creatingOrder ? 'Creating...' : 'Create Order'}
+          </button>
+        </form>
+      )}
 
       <table border="1" cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
@@ -178,37 +209,36 @@ export default function OrdersList() {
             <th>Destination</th>
             <th>Waybill</th>
             <th>Status</th>
-            <th>Action</th>
+            {role !== 'customer' && <th>Action</th>}
           </tr>
         </thead>
         <tbody>
           {orders.map(order => (
-            <tr key={order.id}>
+            <tr key={order.id} style={{ background: order.status === 'awaiting_payment' ? '#fff7e6' : 'transparent' }}>
               <td>{order.id}</td>
               <td>{order.customer_name}</td>
               <td>{order.pickup}</td>
               <td>{order.destination}</td>
               <td>{order.waybill || '-'}</td>
               <td>{order.status}</td>
-              <td>
-                {['dispatcher', 'admin'].includes(role) && (
+              {role !== 'customer' && (
+                <td>
                   <button onClick={() => handleNextStep(order)}>
                     {getNextStepLabel(order.status)}
                   </button>
-                )}
-              </td>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* 🪟 Assign Modal */}
+      {/* Assign Modal */}
       {assignOrderId && (
         <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
         }}>
           <div style={{ background: '#fff', padding: 20, borderRadius: 8, minWidth: 350 }}>
             <h3>Assign Order #{assignOrderId}</h3>
@@ -224,11 +254,8 @@ export default function OrdersList() {
               />
               {driverSuggestions.length > 0 && (
                 <ul style={{
-                  background: '#fff',
-                  border: '1px solid #ccc',
-                  listStyle: 'none',
-                  margin: 0, padding: 0,
-                  maxHeight: 120, overflowY: 'auto',
+                  background: '#fff', border: '1px solid #ccc', listStyle: 'none',
+                  margin: 0, padding: 0, maxHeight: 120, overflowY: 'auto'
                 }}>
                   {driverSuggestions.map(d => (
                     <li key={d.id} style={{ padding: 5, cursor: 'pointer' }}
@@ -249,7 +276,7 @@ export default function OrdersList() {
               >
                 <option value="">Select Truck</option>
                 {trucks.map(t => (
-                  <option key={t.truck_id} value={t.truck_id}>{t.plate_number}</option>
+                  <option key={t.id} value={t.id}>{t.plate_number}</option>
                 ))}
               </select>
             </div>
@@ -263,7 +290,7 @@ export default function OrdersList() {
               >
                 <option value="">No Trailer</option>
                 {trailers.map(tr => (
-                  <option key={tr.trailer_id} value={tr.trailer_id}>{tr.plate_number}</option>
+                  <option key={tr.id} value={tr.id}>{tr.plate_number}</option>
                 ))}
               </select>
             </div>

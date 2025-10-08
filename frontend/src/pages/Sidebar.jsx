@@ -13,6 +13,7 @@ export default function Sidebar() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const role = useSelector(selectUserRole);
+
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [openSubmenu, setOpenSubmenu] = useState(null);
@@ -40,10 +41,15 @@ export default function Sidebar() {
             name: 'Orders',
             icon: <FaClipboardList />,
             roles: ['admin', 'dispatcher', 'operations', 'customer'],
-            subItems: [
-                { name: 'All Orders', path: '/orders' },
-                { name: 'Create Order', path: '/orders/create' },
-            ],
+            subItems: role === 'customer'
+                ? [
+                    { name: 'My Orders', path: '/orders' },
+                    { name: 'Create Order', path: '/orders/create' },
+                  ]
+                : [
+                    { name: 'All Orders', path: '/orders' },
+                    { name: 'Create Order', path: '/orders/create' },
+                  ],
         },
         {
             name: 'Trucks',
@@ -79,7 +85,6 @@ export default function Sidebar() {
 
     return (
         <>
-            {/* Mobile hamburger button */}
             <button className="mobile-toggle" onClick={toggleMobileSidebar}>
                 <FaBars size={24} />
             </button>
@@ -97,7 +102,12 @@ export default function Sidebar() {
                             .map(item => (
                                 <li
                                     key={item.name}
-                                    className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
+                                    className={`menu-item ${
+                                        location.pathname === item.path ||
+                                        (item.subItems && item.subItems.some(sub => sub.path === location.pathname))
+                                            ? 'active'
+                                            : ''
+                                    }`}
                                     title={collapsed ? item.name : ''}
                                 >
                                     {item.subItems ? (
@@ -142,7 +152,6 @@ export default function Sidebar() {
                     </ul>
                 </nav>
 
-                {/* Logout at bottom */}
                 <div className="logout-section" onClick={handleLogout}>
                     <span className="icon"><FaSignOutAlt /></span>
                     {!collapsed && <span className="text">Logout</span>}

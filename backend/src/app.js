@@ -6,7 +6,6 @@ const path = require('path');
 // Routers
 const ordersRouter = require('./routes/orders');
 const usersRouter = require('./routes/users');
-const vehiclesRouter = require('./routes/vehicles');
 const fuelRouter = require('./routes/fuel');
 const mileageRouter = require('./routes/mileage');
 const documentsRouter = require('./routes/documents');
@@ -36,7 +35,6 @@ app.use('/uploads/trailers', express.static(path.join(__dirname, 'uploads/traile
 app.use('/auth', authRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/users', usersRouter);
-app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/fuel', fuelRouter);
 app.use('/api/mileage', mileageRouter);
 app.use('/api/documents', documentsRouter);
