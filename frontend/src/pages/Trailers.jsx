@@ -17,16 +17,18 @@ export default function Trailers() {
   const tableRef = useRef(null);
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
+
   const focusId = searchParams.get("id");
+  const focusRef = searchParams.get("ref");
   const focusPlate = searchParams.get("plate");
 
-  // Fetch all trailers
+  // === Fetch all trailers ===
   const fetchTrailers = async () => {
     try {
       const res = await api.get("/api/trailers");
       setTrailers(res.data);
     } catch (err) {
-      console.error("Error fetching trailers:", err);
+      console.error("❌ Error fetching trailers:", err);
     }
   };
 
@@ -34,27 +36,29 @@ export default function Trailers() {
     fetchTrailers();
   }, []);
 
-  // Scroll to and highlight focused trailer
+  // === Scroll to and highlight focused trailer ===
   useEffect(() => {
     if (!trailers.length) return;
 
-    const row = tableRef.current?.querySelector(
-      focusId
-        ? `[data-id="${focusId}"]`
-        : focusPlate
-        ? `[data-plate="${focusPlate}"]`
-        : null
-    );
+    const row =
+      tableRef.current?.querySelector(
+        `[data-id="${focusId}"], [data-plate="${focusRef}"], [data-plate="${focusPlate}"]`
+      ) || null;
 
     if (row) {
       row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.style.transition = "background-color 0.3s ease-in-out, outline 0.3s";
       row.style.outline = "3px solid #007bff";
-      row.style.transition = "outline 0.5s ease-in-out";
-      setTimeout(() => (row.style.outline = "none"), 2500);
-    }
-  }, [trailers, focusId, focusPlate]);
+      row.style.backgroundColor = "#e0f0ff";
 
-  // Handle input changes
+      setTimeout(() => {
+        row.style.outline = "none";
+        row.style.backgroundColor = "";
+      }, 2500);
+    }
+  }, [trailers, focusId, focusRef, focusPlate]);
+
+  // === Handle Input Changes ===
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     setFormData({
@@ -63,15 +67,14 @@ export default function Trailers() {
     });
   };
 
-  // Add new trailer
+  // === Add Trailer ===
   const handleAddTrailer = async () => {
     try {
       const data = new FormData();
       Object.keys(formData).forEach((key) => data.append(key, formData[key]));
 
       await api.post("/api/trailers", data);
-      alert("Trailer added successfully!");
-
+      alert("✅ Trailer added successfully!");
       setFormData({
         plate_number: "",
         insurance_expiry_date: "",
@@ -81,15 +84,14 @@ export default function Trailers() {
         inspection_expiry_date: "",
         inspection_file: null,
       });
-
       fetchTrailers();
     } catch (err) {
-      console.error("Error adding trailer:", err);
+      console.error("❌ Error adding trailer:", err);
       alert(err.response?.data?.message || "Failed to add trailer");
     }
   };
 
-  // Status logic
+  // === Status Logic ===
   const computeStatus = (t) => {
     const today = new Date();
     const soon = 30; // days
@@ -135,9 +137,9 @@ export default function Trailers() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>Trailer Management</h2>
+      <h2>🚛 Trailer Management</h2>
 
-      {/* Add Trailer Section */}
+      {/* === Add Trailer Section === */}
       <div
         style={{
           marginBottom: 20,
@@ -232,7 +234,7 @@ export default function Trailers() {
         </div>
       </div>
 
-      {/* Trailer Table */}
+      {/* === Trailer Table === */}
       <table
         ref={tableRef}
         border="1"
