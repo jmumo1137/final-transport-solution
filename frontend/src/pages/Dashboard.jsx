@@ -292,6 +292,91 @@ export default function AdminDashboard() {
           </table>
         )}
       </div>
+
+      {/* 🔹 Recent Deliveries Table */}
+      <div style={{ marginTop: "40px" }}>
+        <h3 style={{ color: "#1e293b" }}>Recent Deliveries</h3>
+
+        {/* Quick Stats */}
+        <div
+          style={{
+            display: "flex",
+            gap: "20px",
+            flexWrap: "wrap",
+            marginBottom: "15px",
+          }}
+        >
+          <div
+            style={{
+              flex: "1",
+              minWidth: "180px",
+              background: "#f9fafb",
+              borderRadius: "10px",
+              padding: "15px",
+              textAlign: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <h4 style={{ margin: 0, color: "#475569" }}>Total Delivered</h4>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "24px",
+                fontWeight: 700,
+                color: "#10b981",
+              }}
+            >
+              {orders.filter(o => o.status.toLowerCase() === "closed").length}
+            </p>
+          </div>
+        </div>
+
+        {orders.filter(o => o.status.toLowerCase() === "closed").length === 0 ? (
+          <p>No recent deliveries.</p>
+        ) : (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              background: "#fff",
+              borderRadius: "8px",
+              overflow: "hidden",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            }}
+          >
+            <thead style={{ background: "#f1f5f9", color: "#1e293b" }}>
+              <tr>
+                {["ID", "Customer", "Pickup", "Destination", "Waybill", "Delivered On"].map(
+                  (h, i) => (
+                    <th key={i} style={{ padding: "10px", textAlign: "left" }}>
+                      {h}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {orders
+                .filter(o => o.status.toLowerCase() === "closed")
+                .sort((a, b) => new Date(b.delivered_at) - new Date(a.delivered_at))
+                .slice(0, 5)
+                .map((order) => (
+                  <tr key={order.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td style={{ padding: "10px" }}>{order.id}</td>
+                    <td style={{ padding: "10px" }}>{order.customer_name}</td>
+                    <td style={{ padding: "10px" }}>{order.pickup}</td>
+                    <td style={{ padding: "10px" }}>{order.destination}</td>
+                    <td style={{ padding: "10px" }}>{order.waybill || "-"}</td>
+                    <td style={{ padding: "10px" }}>
+                      {new Date(order.delivered_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
