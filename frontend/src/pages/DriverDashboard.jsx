@@ -102,6 +102,54 @@ export default function DriverDashboard() {
     return { status: "Valid", color: "#d4edda" };
   };
 
+const handleLoadOrder = async (orderId) => {
+  try {
+    const quantity = prompt("Enter quantity loaded (in tons or liters):");
+    if (!quantity || isNaN(quantity) || quantity <= 0) {
+      alert("Please enter a valid quantity greater than zero.");
+      return;
+    }
+
+    const res = await api.post(`/api/orders/${orderId}/loaded`, {
+      quantity_loaded: Number(quantity),
+    });
+
+    alert(res.data.message || "Order marked as loaded!");
+    fetchAssignedOrders(); // refresh list
+  } catch (err) {
+    console.error("handleLoadOrder error:", err.response?.data || err.message);
+    alert(err.response?.data?.message || "Failed to mark order as loaded.");
+  }
+};
+
+const handleStartJourney = async (orderId) => {
+  try {
+    const confirmStart = window.confirm("Start the journey for this order?");
+    if (!confirmStart) return;
+
+    const res = await api.post(`/api/orders/${orderId}/enroute`);
+
+    alert(res.data.message || "Journey started successfully!");
+    fetchAssignedOrders(); // ✅ refresh orders after status change
+  } catch (err) {
+    console.error("❌ handleStartJourney error:", err);
+
+    if (err.response) {
+      // Backend responded with an error (like 400 or 500)
+      alert(err.response.data.message || "Failed to start journey.");
+    } else if (err.request) {
+      // No response (Network / CORS / server down)
+      alert("Network error or server unavailable. Please check your connection.");
+      // Safe refresh to reinitialize API session
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      // Unknown client-side error
+      alert("Unexpected error occurred. Please try again.");
+    }
+  }
+};
+
+
   // ---------------------- Render Driver Info ----------------------
   const renderDriverInfo = () => (
     <div style={{ padding: '20px' }}>

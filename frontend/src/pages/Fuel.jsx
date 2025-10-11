@@ -1,21 +1,30 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import api from "../api/api";
+import "/src/styles.css"; // optional for styling
 
 export default function Fuel() {
   const { id } = useParams();
+  const [fuelRecords, setFuelRecords] = useState([]);
   const [file, setFile] = useState(null);
   const [liters, setLiters] = useState("");
   const [cost, setCost] = useState("");
   const [cashSpent, setCashSpent] = useState("");
-  const [fuelRecords, setFuelRecords] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [hoverPreview, setHoverPreview] = useState(null);
 
+  // Fetch previous fuel records
   const fetchFuelRecords = async () => {
     try {
       const res = await api.get(`/api/fuel/${id}`);
-      setFuelRecords(res.data.fuelRecords || []);
-      setCashSpent(res.data.cashSpent || 0);
+      const records = (res.data.fuelRecords || []).map(r => ({
+        ...r,
+        receipt_url: r.file_path
+          ? `http://localhost:5000${r.file_path}` // Ensure this points to your backend
+          : null,
+      }));
+      setFuelRecords(records);
+      setCashSpent(res.data.cashSpent || "");
     } catch (err) {
       console.error("Fetch fuel records error:", err.response?.data || err.message);
     }
@@ -25,11 +34,9 @@ export default function Fuel() {
     fetchFuelRecords();
   }, [id]);
 
+  // Upload new fuel record
   const handleUpload = async () => {
-    if (!file || !liters || !cost) {
-      alert("File, liters, and cost are required!");
-      return;
-    }
+    if (!file || !liters || !cost) return alert("File, liters, and cost are required!");
 
     const formData = new FormData();
     formData.append("fuel_receipt", file);
@@ -39,18 +46,14 @@ export default function Fuel() {
 
     try {
       setLoading(true);
-      const res = await api.post(`/api/fuel/${id}`, formData, {
+      await api.post(`/api/fuel/${id}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
-      if (res.data?.message) {
-        alert("✅ Fuel record uploaded successfully!");
-        setFile(null);
-        setLiters("");
-        setCost("");
-        setCashSpent("");
-        fetchFuelRecords();
-      }
+      setFile(null);
+      setLiters("");
+      setCost("");
+      setCashSpent("");
+      fetchFuelRecords();
     } catch (err) {
       console.error("Upload error:", err.response?.data || err.message);
       alert(err.response?.data?.error || "Failed to upload fuel record");
@@ -62,8 +65,11 @@ export default function Fuel() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Fuel — Order {id}</h1>
+
+      {/* Upload Form */}
       <div style={{ marginBottom: 20 }}>
         <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+        <span style={{ marginLeft: 5 }}>{file ? file.name : "No file chosen"}</span>
         <br />
         <input
           type="number"
@@ -94,11 +100,27 @@ export default function Fuel() {
         </button>
       </div>
 
+      {/* Hover preview */}
+      {hoverPreview && (
+        <div
+          style={{
+            position: "absolute",
+            border: "1px solid #ccc",
+            padding: 5,
+            background: "#fff",
+            zIndex: 100,
+          }}
+        >
+          <img src={hoverPreview} alt="Preview" style={{ maxWidth: 200, maxHeight: 200 }} />
+        </div>
+      )}
+
+      {/* Previous Fuel Records */}
       <h3>Previous Fuel Records</h3>
       {fuelRecords.length === 0 ? (
         <p>No fuel records yet.</p>
       ) : (
-        <table border="1" cellPadding="5" style={{ width: "100%" }}>
+        <table border="1" cellPadding="5" style={{ width: "100%", position: "relative" }}>
           <thead>
             <tr>
               <th>ID</th>
@@ -113,9 +135,19 @@ export default function Fuel() {
               <tr key={record.id}>
                 <td>{record.id}</td>
                 <td>
-                  <a href={`/${record.file_path}`} target="_blank" rel="noreferrer">
-                    View
-                  </a>
+                  {record.receipt_url ? (
+                    <span
+                      style={{ cursor: "pointer", fontSize: "18px" }}
+                      onClick={() => window.open(record.receipt_url, "_blank")}
+                      onMouseEnter={() => setHoverPreview(record.receipt_url)}
+                      onMouseLeave={() => setHoverPreview(null)}
+                      title="View Receipt"
+                    >
+                      📎
+                    </span>
+                  ) : (
+                    "No file chosen"
+                  )}
                 </td>
                 <td>{record.liters}</td>
                 <td>{record.cost}</td>

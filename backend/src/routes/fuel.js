@@ -13,9 +13,14 @@ if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder, { recursive: true }
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadFolder),
-  filename: (_, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (_, file, cb) => {
+    // Replace spaces with underscores
+    const safeName = file.originalname.replace(/\s+/g, '_');
+    cb(null, `${Date.now()}-${safeName}`);
+  }
 });
 const upload = multer({ storage });
+
 
 /**
  * POST /api/fuel/:id

@@ -41,7 +41,7 @@ export default function Mileage() {
         start_odometer: startOdometer || null,
         end_odometer: endOdometer,
       });
-      alert('Mileage and quantity delivered logged successfully.');
+      alert('Mileage logged successfully.');
       setEndOdometer('');
       fetchMileage();
       fetchOrder();
