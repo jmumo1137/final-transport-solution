@@ -5,12 +5,15 @@ import api from '../api/api';
 export default function Documents() {
   const { id } = useParams(); // order ID
   const navigate = useNavigate();
+
   const [file, setFile] = useState(null);
   const [quantityDelivered, setQuantityDelivered] = useState('');
   const [uploadedDocs, setUploadedDocs] = useState([]);
+  const [totalDelivered, setTotalDelivered] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [totalDelivered, setTotalDelivered] = useState(0); // NEW
+  const [hoverPreview, setHoverPreview] = useState(null);
 
+  // Fetch uploaded documents
   const fetchDocuments = async () => {
     try {
       const res = await api.get(`/api/documents/${id}`);
@@ -29,19 +32,15 @@ export default function Documents() {
     fetchDocuments();
   }, [id]);
 
+  // Upload POD
   const handleUpload = async () => {
-    if (!file) {
-      alert('Please select a file to upload!');
-      return;
-    }
-    if (!quantityDelivered || isNaN(quantityDelivered) || quantityDelivered <= 0) {
-      alert('Please enter a valid quantity delivered!');
-      return;
-    }
+    if (!file) return alert('Please select a file!');
+    if (!quantityDelivered || isNaN(quantityDelivered) || quantityDelivered <= 0)
+      return alert('Enter a valid quantity delivered!');
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('type', 'pod'); // mark as POD
+    formData.append('type', 'pod');
     formData.append('quantity_delivered', quantityDelivered);
 
     try {
@@ -64,16 +63,23 @@ export default function Documents() {
     }
   };
 
+  // Helper to generate file URL with spaces handled
+  const getFileUrl = (filePath) =>
+    `http://localhost:5000/${encodeURI(filePath.replace(/^\/+/, ''))}`;
+
+  const isImageFile = (filename) => /\.(jpe?g|png|gif|bmp|webp)$/i.test(filename);
+
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 20, position: 'relative' }}>
       <h1>Upload POD - Order {id}</h1>
       <button onClick={() => navigate(-1)}>Back</button>
 
+      {/* Upload Form */}
       <div style={{ marginTop: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
         <input
           type="file"
-          onChange={(e) => setFile(e.target.files[0])}
           accept="image/*,application/pdf"
+          onChange={(e) => setFile(e.target.files[0])}
         />
         <input
           type="number"
@@ -87,25 +93,51 @@ export default function Documents() {
         </button>
       </div>
 
+      {/* Total Delivered */}
       <h3 style={{ marginTop: 20 }}>Total Quantity Delivered: {totalDelivered}</h3>
 
+      {/* Uploaded PODs */}
       <h3 style={{ marginTop: 30 }}>Uploaded PODs:</h3>
       {uploadedDocs.length === 0 ? (
         <p>No PODs uploaded yet.</p>
       ) : (
         <ul>
-          {uploadedDocs.map((doc) => (
-            <li key={doc.id}>
-              <a
-                href={`http://localhost:5000/${doc.file_path}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {doc.file_path.split('/').pop()} (Quantity: {doc.quantity_delivered || '-'}, Uploaded: {new Date(doc.uploaded_at).toLocaleString()})
-              </a>
-            </li>
-          ))}
+          {uploadedDocs.map((doc) => {
+            const url = getFileUrl(doc.file_path);
+            const isImage = isImageFile(doc.file_path);
+
+            return (
+              <li key={doc.id} style={{ marginBottom: 5 }}>
+                <span
+                  style={{ cursor: 'pointer', textDecoration: 'underline', color: 'blue' }}
+                  onClick={() => window.open(url, '_blank')}
+                  onMouseEnter={() => isImage && setHoverPreview(url)}
+                  onMouseLeave={() => setHoverPreview(null)}
+                  title="Click to view"
+                >
+                  {doc.file_path.split('/').pop()} (Qty: {doc.quantity_delivered || '-'}, Uploaded: {new Date(doc.uploaded_at).toLocaleString()})
+                </span>
+              </li>
+            );
+          })}
         </ul>
+      )}
+
+      {/* Hover Preview */}
+      {hoverPreview && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 100,
+            left: 50,
+            border: '1px solid #ccc',
+            padding: 5,
+            background: '#fff',
+            zIndex: 100,
+          }}
+        >
+          <img src={hoverPreview} alt="Preview" style={{ maxWidth: 200, maxHeight: 200 }} />
+        </div>
       )}
     </div>
   );

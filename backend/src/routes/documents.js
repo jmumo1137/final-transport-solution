@@ -2,14 +2,27 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const db = require('../db'); 
+const fs = require('fs');
+const db = require('../db');
 
+// Define upload folder relative to this file
+const uploadFolder = path.join(__dirname, '../uploads/documents');
+
+// Ensure the folder exists
+if (!fs.existsSync(uploadFolder)) {
+  fs.mkdirSync(uploadFolder, { recursive: true });
+}
+
+// Multer storage setup
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/documents');
+    cb(null, uploadFolder);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
+    // Save with timestamp + original name
+    const timestamp = Date.now();
+    const sanitizedFilename = file.originalname.replace(/\s+/g, '_'); // replace spaces
+    cb(null, `${timestamp}-${sanitizedFilename}`);
   },
 });
 
@@ -21,7 +34,7 @@ router.get('/:orderId', async (req, res) => {
     const docs = await db('documents').where({ order_id: req.params.orderId });
     res.json(docs);
   } catch (err) {
-    console.error(err);
+    console.error('Fetch documents error:', err);
     res.status(500).json({ error: 'Failed to fetch documents' });
   }
 });
@@ -33,15 +46,15 @@ router.post('/:orderId', upload.single('file'), async (req, res) => {
 
     if (!req.file) return res.status(400).json({ error: 'File is required' });
 
-    // 1️⃣ Insert document record
+    // Insert document record
     await db('documents').insert({
       order_id: req.params.orderId,
       type: req.body.type || 'pod',
-      file_path: `uploads/documents/${req.file.filename}`,
+      file_path: `uploads/documents/${req.file.filename}`, // path used in frontend
       uploaded_at: new Date(),
     });
 
-    // 2️⃣ Update quantity delivered in orders table if provided
+    // Update order quantity if provided
     if (quantity_delivered) {
       await db('orders')
         .where({ id: req.params.orderId })
@@ -50,7 +63,7 @@ router.post('/:orderId', upload.single('file'), async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error('Upload error:', err);
     res.status(500).json({ error: 'Failed to upload POD' });
   }
 });
