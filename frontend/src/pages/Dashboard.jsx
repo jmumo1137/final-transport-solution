@@ -1,39 +1,30 @@
-// src/pages/OrdersList.jsx
-import React, { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
-import api from '../api/api';
-import { selectUserRole } from '../features/auth/authSlice';
+// src/pages/AdminDashboard.jsx
+import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import api from "../api/api";
+import { selectUserRole } from "../features/auth/authSlice";
+import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 
-export default function OrdersList() {
+export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [assignOrderId, setAssignOrderId] = useState(null);
-
   const [drivers, setDrivers] = useState([]);
-  const [driverUsername, setDriverUsername] = useState('');
-  const [driverSuggestions, setDriverSuggestions] = useState([]);
-  const [selectedDriverId, setSelectedDriverId] = useState(null);
-
   const [trucks, setTrucks] = useState([]);
-  const [selectedTruck, setSelectedTruck] = useState('');
   const [trailers, setTrailers] = useState([]);
-  const [selectedTrailer, setSelectedTrailer] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const role = useSelector(selectUserRole);
 
   useEffect(() => {
     fetchOrders();
-    if (['dispatcher', 'admin'].includes(role)) {
-      fetchResources();
-    }
+    if (["dispatcher", "admin"].includes(role)) fetchResources();
   }, [role]);
 
   const fetchOrders = async () => {
     try {
-      const res = await api.get('/api/orders');
+      const res = await api.get("/api/orders");
       setOrders(res.data);
     } catch (err) {
-      console.error('Error fetching orders:', err);
+      console.error("Error fetching orders:", err);
     } finally {
       setLoading(false);
     }
@@ -42,237 +33,265 @@ export default function OrdersList() {
   const fetchResources = async () => {
     try {
       const [driversRes, trucksRes, trailersRes] = await Promise.all([
-        api.get('/api/users/drivers'),
-        api.get('/api/trucks/available'),
-        api.get('/api/trailers/available'),
+        api.get("/api/users/drivers"),
+        api.get("/api/trucks/available"),
+        api.get("/api/trailers/available"),
       ]);
-
       setDrivers(driversRes.data);
       setTrucks(trucksRes.data);
       setTrailers(trailersRes.data);
     } catch (err) {
-      console.error('Error fetching resources:', err);
-    }
-  };
-
-  // 🧭 STEP LOGIC
-  const getNextStepLabel = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'created': return 'Assign Driver';
-      case 'assigned': return 'Mark Loaded';
-      case 'loaded': return 'Start Transport';
-      case 'enroute': return 'Mark Delivered';
-      case 'delivered': return 'Awaiting Payment';
-      case 'awaiting_payment': return 'Mark as Paid';
-      case 'paid': return 'Close Order';
-      default: return 'Order Closed';
+      console.error("Error fetching resources:", err);
     }
   };
 
   const handleNextStep = async (order) => {
-    if (role === 'consignee') return; // Consignees cannot move orders
     try {
       let res;
       switch (order.status.toLowerCase()) {
-        case 'created':
-          // Open assign modal instead
-          setAssignOrderId(order.id);
-          return;
-        case 'assigned':
+        case "assigned":
           res = await api.post(`/api/orders/${order.id}/loaded`);
           break;
-        case 'loaded':
+        case "loaded":
           res = await api.post(`/api/orders/${order.id}/enroute`, { start_odometer: 0 });
           break;
-        case 'enroute':
+        case "enroute":
           res = await api.post(`/api/orders/${order.id}/delivered`);
           break;
-        case 'delivered':
+        case "delivered":
           res = await api.post(`/api/orders/${order.id}/awaiting-payment`);
           break;
-        case 'awaiting_payment':
+        case "awaiting_payment":
           res = await api.post(`/api/orders/${order.id}/paid`);
           break;
-        case 'paid':
+        case "paid":
           res = await api.post(`/api/orders/${order.id}/close`);
           break;
-        case 'closed':
-          alert('Order is already closed.');
-          return;
         default:
-          alert('Unknown order status.');
           return;
       }
-      if (res?.data?.ok || res?.data) fetchOrders();
+      if (res?.data) fetchOrders();
     } catch (err) {
-      console.error('Next step error:', err.response?.data || err.message);
-      alert(err.response?.data?.error || 'Failed to move to next step.');
+      console.error("Next step error:", err.response?.data || err.message);
     }
   };
 
-  // 🔍 DRIVER AUTOCOMPLETE
-  const handleDriverChange = async (e) => {
-    const value = e.target.value;
-    setDriverUsername(value);
-    setSelectedDriverId(null);
-
-    if (value.length >= 1) {
-      try {
-        const res = await api.get(`/api/users/drivers?search=${value}`);
-        setDriverSuggestions(res.data);
-      } catch {
-        setDriverSuggestions([]);
-      }
-    } else {
-      setDriverSuggestions([]);
+  const getNextStepLabel = (status) => {
+    switch (status.toLowerCase()) {
+      case "assigned":
+        return "Mark Loaded";
+      case "loaded":
+        return "Mark Enroute";
+      case "enroute":
+        return "Mark Delivered";
+      case "delivered":
+        return "Request Payment";
+      case "awaiting_payment":
+        return "Mark Paid";
+      case "paid":
+        return "Close Order";
+      default:
+        return "—";
     }
   };
 
-  const handleSelectDriver = (driver) => {
-    setDriverUsername(driver.username);
-    setSelectedDriverId(driver.id);
-    setDriverSuggestions([]);
-  };
+  if (loading) return <p>Loading dashboard...</p>;
 
-  const handleAssignSubmit = async () => {
-    if (!selectedDriverId || !selectedTruck) {
-      alert('Driver and Truck are required!');
-      return;
-    }
+  // 🔹 Data calculations
+  const activeOrders = orders.filter((o) =>
+    ["assigned", "loaded", "enroute"].includes(o.status?.toLowerCase())
+  );
+  const totalDrivers = drivers.length;
+  const totalTrucks = trucks.length;
+  const pendingOrders = orders.filter((o) => o.status === "created").length;
 
-    try {
-      await api.post(`/api/orders/${assignOrderId}/assign`, {
-        driver_id: selectedDriverId,
-        truck_id: selectedTruck,
-        trailer_id: selectedTrailer || null,
-      });
-      alert('Order assigned successfully!');
-      setAssignOrderId(null);
-      setDriverUsername('');
-      setSelectedDriverId(null);
-      setSelectedTruck('');
-      setSelectedTrailer('');
-      fetchOrders();
-      fetchResources();
-    } catch (err) {
-      console.error('Assignment error:', err.response?.data || err.message);
-      alert(err.response?.data?.error || 'Failed to assign order');
-    }
-  };
+  // 🔹 Chart data
+  const chartData = [
+    { name: "Assigned", value: orders.filter((o) => o.status === "assigned").length },
+    { name: "Loaded", value: orders.filter((o) => o.status === "loaded").length },
+    { name: "Enroute", value: orders.filter((o) => o.status === "enroute").length },
+  ];
+  const COLORS = ["#00C49F", "#0088FE", "#FF8042"];
 
-  if (loading) return <p>Loading orders...</p>;
+  const driverAlerts = drivers.filter((d) => new Date(d.licenseExpiry) < new Date());
+  const truckAlerts = trucks.filter((t) => new Date(t.insuranceExpiry) < new Date());
 
-  // 🧩 RENDER
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Orders</h2>
+    <div style={{ padding: "20px" }}>
+      <h2 style={{ marginBottom: "20px", color: "#1e293b" }}>Admin Dashboard</h2>
 
-      <table border="1" cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Customer</th>
-            <th>Pickup</th>
-            <th>Destination</th>
-            <th>Waybill</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map(order => (
-            <tr key={order.id}>
-              <td>{order.id}</td>
-              <td>{order.customer_name}</td>
-              <td>{order.pickup}</td>
-              <td>{order.destination}</td>
-              <td>{order.waybill || '-'}</td>
-              <td>{order.status}</td>
-              <td>
-                {['dispatcher', 'admin'].includes(role) && (
-                  <button onClick={() => handleNextStep(order)}>
-                    {getNextStepLabel(order.status)}
-                  </button>
-                )}
-              </td>
-            </tr>
+      {/* 🔹 Top Summary + Chart Row */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "20px",
+          alignItems: "stretch",
+          marginBottom: "30px",
+        }}
+      >
+        {/* Summary Cards */}
+        <div
+          style={{
+            display: "flex",
+            flex: "2",
+            gap: "20px",
+            flexWrap: "wrap",
+          }}
+        >
+          {[
+            { title: "Active Orders", value: activeOrders.length },
+            { title: "Pending Orders", value: pendingOrders },
+            { title: "Drivers", value: totalDrivers },
+            { title: "Trucks", value: totalTrucks },
+          ].map((item, i) => (
+            <div
+              key={i}
+              style={{
+                flex: "1",
+                minWidth: "180px",
+                background: "#f9fafb",
+                borderRadius: "10px",
+                padding: "20px",
+                textAlign: "center",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <h4 style={{ margin: 0, color: "#475569" }}>{item.title}</h4>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "26px",
+                  fontWeight: "700",
+                  color: "#2563eb",
+                }}
+              >
+                {item.value}
+              </p>
+            </div>
           ))}
-        </tbody>
-      </table>
-
-      {/* 🪟 Assign Modal */}
-      {assignOrderId && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{ background: '#fff', padding: 20, borderRadius: 8, minWidth: 350 }}>
-            <h3>Assign Order #{assignOrderId}</h3>
-
-            <div style={{ marginBottom: 10 }}>
-              <label>Driver:</label>
-              <input
-                type="text"
-                value={driverUsername}
-                onChange={handleDriverChange}
-                placeholder="Type driver username"
-                style={{ width: '100%', padding: 5 }}
-              />
-              {driverSuggestions.length > 0 && (
-                <ul style={{
-                  background: '#fff',
-                  border: '1px solid #ccc',
-                  listStyle: 'none',
-                  margin: 0, padding: 0,
-                  maxHeight: 120, overflowY: 'auto',
-                }}>
-                  {driverSuggestions.map(d => (
-                    <li key={d.id} style={{ padding: 5, cursor: 'pointer' }}
-                        onClick={() => handleSelectDriver(d)}>
-                      {d.username}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div style={{ marginBottom: 10 }}>
-              <label>Truck:</label>
-              <select
-                value={selectedTruck}
-                onChange={e => setSelectedTruck(e.target.value)}
-                style={{ width: '100%', padding: 5 }}
-              >
-                <option value="">Select Truck</option>
-                {trucks.map(t => (
-                  <option key={t.truck_id} value={t.truck_id}>{t.plate_number}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 10 }}>
-              <label>Trailer (optional):</label>
-              <select
-                value={selectedTrailer}
-                onChange={e => setSelectedTrailer(e.target.value)}
-                style={{ width: '100%', padding: 5 }}
-              >
-                <option value="">No Trailer</option>
-                {trailers.map(tr => (
-                  <option key={tr.trailer_id} value={tr.trailer_id}>{tr.plate_number}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 15 }}>
-              <button onClick={handleAssignSubmit}>Assign</button>
-              <button onClick={() => setAssignOrderId(null)}>Cancel</button>
-            </div>
-          </div>
         </div>
-      )}
+
+        {/* Orders Status Chart */}
+        <div
+          style={{
+            flex: "1",
+            minWidth: "300px",
+            background: "#ffffff",
+            borderRadius: "10px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            padding: "20px",
+            textAlign: "center",
+          }}
+        >
+          <h4 style={{ color: "#475569", marginBottom: "10px" }}>Orders Status</h4>
+          <PieChart width={250} height={250}>
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              label
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+          </PieChart>
+        </div>
+      </div>
+
+      {/* 🔹 Alerts */}
+      <div style={{ marginBottom: "30px" }}>
+        <h3 style={{ color: "#1e293b" }}>Alerts</h3>
+        {driverAlerts.length === 0 && truckAlerts.length === 0 ? (
+          <p>No alerts 🚀</p>
+        ) : (
+          <ul style={{ paddingLeft: "20px" }}>
+            {driverAlerts.map((d) => (
+              <li key={d.id} style={{ color: "#dc2626" }}>
+                ⚠️ Driver {d.username} license expired
+              </li>
+            ))}
+            {truckAlerts.map((t) => (
+              <li key={t.truck_id} style={{ color: "#f97316" }}>
+                ⚠️ Truck {t.plate_number} insurance expired
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* 🔹 Active Orders Table */}
+      <div>
+        <h3 style={{ color: "#1e293b" }}>Active Orders</h3>
+        {activeOrders.length === 0 ? (
+          <p>No active orders.</p>
+        ) : (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              background: "#fff",
+              borderRadius: "8px",
+              overflow: "hidden",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            }}
+          >
+            <thead style={{ background: "#f1f5f9", color: "#1e293b" }}>
+              <tr>
+                {["ID", "Customer", "Pickup", "Destination", "Waybill", "Status", "Action"].map(
+                  (h, i) => (
+                    <th key={i} style={{ padding: "10px", textAlign: "left" }}>
+                      {h}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {activeOrders.map((order) => (
+                <tr key={order.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                  <td style={{ padding: "10px" }}>{order.id}</td>
+                  <td style={{ padding: "10px" }}>{order.customer_name}</td>
+                  <td style={{ padding: "10px" }}>{order.pickup}</td>
+                  <td style={{ padding: "10px" }}>{order.destination}</td>
+                  <td style={{ padding: "10px" }}>{order.waybill || "-"}</td>
+                  <td style={{ padding: "10px", textTransform: "capitalize" }}>{order.status}</td>
+                  <td style={{ textAlign: "center" }}>
+                    {["dispatcher", "admin"].includes(role) && order.status !== "closed" ? (
+                      <button
+                        onClick={() => handleNextStep(order)}
+                        style={{
+                          background: "#2563eb",
+                          color: "white",
+                          border: "none",
+                          padding: "6px 12px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                          transition: "background 0.2s ease",
+                        }}
+                        onMouseOver={(e) => (e.target.style.background = "#1d4ed8")}
+                        onMouseOut={(e) => (e.target.style.background = "#2563eb")}
+                      >
+                        {getNextStepLabel(order.status)}
+                      </button>
+                    ) : (
+                      <span style={{ color: "#64748b" }}>Closed</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
