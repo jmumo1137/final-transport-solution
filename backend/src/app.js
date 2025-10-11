@@ -30,6 +30,8 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/uploads/driver', express.static(path.join(__dirname, 'uploads/driver')));
 app.use('/uploads/trucks', express.static(path.join(__dirname, 'uploads/trucks')));
 app.use('/uploads/trailers', express.static(path.join(__dirname, 'uploads/trailers')));
+app.use('/uploads/fuel', express.static(path.join(__dirname, 'uploads/fuel')));
+
 
 // ---------------- Mount Routers ----------------
 app.use('/auth', authRouter);

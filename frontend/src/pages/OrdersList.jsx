@@ -1,4 +1,3 @@
-// src/pages/OrdersList.jsx
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import api from '../api/api';
@@ -17,6 +16,7 @@ export default function OrdersList() {
   const [driverUsername, setDriverUsername] = useState('');
   const [driverSuggestions, setDriverSuggestions] = useState([]);
   const [selectedDriverId, setSelectedDriverId] = useState(null);
+
   const [trucks, setTrucks] = useState([]);
   const [selectedTruck, setSelectedTruck] = useState('');
   const [trailers, setTrailers] = useState([]);
@@ -31,6 +31,7 @@ export default function OrdersList() {
     if (['dispatcher', 'admin'].includes(role)) fetchResources();
   }, [role]);
 
+  // -------- FETCH ORDERS --------
   const fetchOrders = async () => {
     setLoading(true);
     try {
@@ -48,12 +49,13 @@ export default function OrdersList() {
     }
   };
 
+  // -------- FETCH DRIVERS / TRUCKS / TRAILERS --------
   const fetchResources = async () => {
     try {
       const [driversRes, trucksRes, trailersRes] = await Promise.all([
         api.get('/api/users/drivers'),
-        api.get('/api/trucks/available'),
-        api.get('/api/trailers/available'),
+        api.get('/api/trucks'),
+        api.get('/api/trailers'),
       ]);
       setDrivers(driversRes.data);
       setTrucks(trucksRes.data);
@@ -63,7 +65,7 @@ export default function OrdersList() {
     }
   };
 
-  // NEXT STEP LOGIC
+  // -------- ORDER PROGRESSION LABELS --------
   const getNextStepLabel = status => {
     switch (status?.toLowerCase()) {
       case 'created': return 'Assign Driver';
@@ -77,6 +79,7 @@ export default function OrdersList() {
     }
   };
 
+  // -------- NEXT STEP HANDLER --------
   const handleNextStep = async order => {
     if (role === 'customer') return;
     const orderId = order.id;
@@ -96,11 +99,11 @@ export default function OrdersList() {
       if (res?.data) fetchOrders();
     } catch (err) {
       console.error('Next step error:', err.response?.data || err.message);
-      alert(err.response?.data?.error || 'Failed to move to next step.');
+      alert(err.response?.data?.message || 'Failed to move to next step.');
     }
   };
 
-  // DRIVER AUTOCOMPLETE
+  // -------- DRIVER AUTOCOMPLETE --------
   const handleDriverChange = async e => {
     const value = e.target.value;
     setDriverUsername(value);
@@ -121,31 +124,38 @@ export default function OrdersList() {
     setDriverSuggestions([]);
   };
 
+  // -------- ASSIGN ORDER --------
   const handleAssignSubmit = async () => {
     if (!selectedDriverId || !selectedTruck) {
       alert('Driver and Truck are required!');
       return;
     }
+
     try {
       await api.post(`/api/orders/${assignOrderId}/assign`, {
         driver_id: selectedDriverId,
-        truck_id: selectedTruck,
+        truck_id: selectedTruck,       // now sending plate_number for compliance
         trailer_id: selectedTrailer || null,
       });
       alert('Order assigned successfully!');
-      setAssignOrderId(null);
-      setDriverUsername('');
-      setSelectedDriverId(null);
-      setSelectedTruck('');
-      setSelectedTrailer('');
+      resetAssignModal();
       fetchOrders();
       fetchResources();
     } catch (err) {
       console.error('Assignment error:', err.response?.data || err.message);
-      alert(err.response?.data?.error || 'Failed to assign order');
+      alert(err.response?.data?.error || err.response?.data?.message || 'Failed to assign order');
     }
   };
 
+  const resetAssignModal = () => {
+    setAssignOrderId(null);
+    setDriverUsername('');
+    setSelectedDriverId(null);
+    setSelectedTruck('');
+    setSelectedTrailer('');
+  };
+
+  // -------- CREATE ORDER (CUSTOMER) --------
   const handleCreateOrder = async e => {
     e.preventDefault();
     if (!formData.pickup || !formData.destination) {
@@ -172,27 +182,23 @@ export default function OrdersList() {
     <div style={{ padding: 20 }}>
       <h2>Orders</h2>
 
+      {/* CREATE ORDER - CUSTOMER */}
       {role === 'customer' && (
         <form onSubmit={handleCreateOrder} style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            value={username}
-            disabled
-            style={{ padding: 5, width: '200px', background: '#eee' }}
-          />
+          <input type="text" value={username} disabled style={{ padding: 5, width: 200, background: '#eee' }} />
           <input
             type="text"
             placeholder="Pickup"
             value={formData.pickup}
             onChange={e => setFormData({ ...formData, pickup: e.target.value })}
-            style={{ padding: 5, width: '200px' }}
+            style={{ padding: 5, width: 200 }}
           />
           <input
             type="text"
             placeholder="Destination"
             value={formData.destination}
             onChange={e => setFormData({ ...formData, destination: e.target.value })}
-            style={{ padding: 5, width: '200px' }}
+            style={{ padding: 5, width: 200 }}
           />
           <button type="submit" disabled={creatingOrder} style={{ padding: '5px 15px' }}>
             {creatingOrder ? 'Creating...' : 'Create Order'}
@@ -200,6 +206,7 @@ export default function OrdersList() {
         </form>
       )}
 
+      {/* ORDERS TABLE */}
       <table border="1" cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
@@ -214,7 +221,7 @@ export default function OrdersList() {
         </thead>
         <tbody>
           {orders.map(order => (
-            <tr key={order.id} style={{ background: order.status === 'awaiting_payment' ? '#fff7e6' : 'transparent' }}>
+            <tr key={order.id}>
               <td>{order.id}</td>
               <td>{order.customer_name}</td>
               <td>{order.pickup}</td>
@@ -233,16 +240,17 @@ export default function OrdersList() {
         </tbody>
       </table>
 
-      {/* Assign Modal */}
+      {/* ASSIGN MODAL */}
       {assignOrderId && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
+          alignItems: 'center', justifyContent: 'center'
         }}>
           <div style={{ background: '#fff', padding: 20, borderRadius: 8, minWidth: 350 }}>
             <h3>Assign Order #{assignOrderId}</h3>
 
+            {/* Driver */}
             <div style={{ marginBottom: 10 }}>
               <label>Driver:</label>
               <input
@@ -259,7 +267,7 @@ export default function OrdersList() {
                 }}>
                   {driverSuggestions.map(d => (
                     <li key={d.id} style={{ padding: 5, cursor: 'pointer' }}
-                        onClick={() => handleSelectDriver(d)}>
+                      onClick={() => handleSelectDriver(d)}>
                       {d.username}
                     </li>
                   ))}
@@ -267,6 +275,7 @@ export default function OrdersList() {
               )}
             </div>
 
+            {/* Truck */}
             <div style={{ marginBottom: 10 }}>
               <label>Truck:</label>
               <select
@@ -276,11 +285,14 @@ export default function OrdersList() {
               >
                 <option value="">Select Truck</option>
                 {trucks.map(t => (
-                  <option key={t.id} value={t.id}>{t.plate_number}</option>
+                  <option key={t.truck_id} value={t.plate_number}>
+                    {t.plate_number}
+                  </option>
                 ))}
               </select>
             </div>
 
+            {/* Trailer */}
             <div style={{ marginBottom: 10 }}>
               <label>Trailer (optional):</label>
               <select
@@ -290,14 +302,16 @@ export default function OrdersList() {
               >
                 <option value="">No Trailer</option>
                 {trailers.map(tr => (
-                  <option key={tr.id} value={tr.id}>{tr.plate_number}</option>
+                  <option key={tr.trailer_id} value={tr.plate_number}>
+                    {tr.plate_number}
+                  </option>
                 ))}
               </select>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 15 }}>
               <button onClick={handleAssignSubmit}>Assign</button>
-              <button onClick={() => setAssignOrderId(null)}>Cancel</button>
+              <button onClick={resetAssignModal}>Cancel</button>
             </div>
           </div>
         </div>

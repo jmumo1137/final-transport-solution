@@ -46,50 +46,71 @@ async function listOrders(req, res) {
   }
 }
 
-// ---------- ASSIGN ----------
+// ✅ Assign Order (Fixed)
 async function assignOrder(req, res) {
   try {
     const orderId = Number(req.params.id);
     const { driver_id, truck_id, trailer_id } = req.body;
 
+    console.log("🚚 Incoming body:", req.body);
+
     if (!driver_id || !truck_id)
-      return res.status(400).json({ error: 'Driver and Truck are required.' });
+      return res.status(400).json({ error: "Driver and Truck are required." });
 
-    const order = await db('orders').where({ id: orderId }).first();
-    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    // 🚛 Find truck by PLATE NUMBER (not ID)
+    console.log("🔍 Checking truck plate:", truck_id);
+    const truck = await db("trucks").where({ plate_number: truck_id }).first();
+    console.log("✅ Truck fetched:", truck);
 
-    // prevent double assignment for active orders
-    const activeStatuses = ['assigned', 'loaded', 'enroute'];
-    const truckConflict = await db('orders')
-      .where({ truck_id })
-      .whereIn('status', activeStatuses)
-      .andWhereNot({ id: orderId })
-      .first();
-    if (truckConflict)
-      return res.status(400).json({ error: 'Truck is already assigned to another active order.' });
+    if (!truck)
+      return res.status(400).json({ error: `Truck with plate ${truck_id} not found.` });
 
+    // 🚚 Find trailer by PLATE NUMBER (if provided)
+    let trailer = null;
     if (trailer_id) {
-      const trailerConflict = await db('orders')
-        .where({ trailer_id })
-        .whereIn('status', activeStatuses)
-        .andWhereNot({ id: orderId })
-        .first();
-      if (trailerConflict)
-        return res.status(400).json({ error: 'Trailer is already assigned to another active order.' });
+      console.log("🔍 Checking trailer plate:", trailer_id);
+      trailer = await db("trailers").where({ plate_number: trailer_id }).first();
+      console.log("✅ Trailer fetched:", trailer);
+
+      if (!trailer)
+        return res.status(400).json({ error: `Trailer with plate ${trailer_id} not found.` });
     }
 
-    await db('orders').where({ id: orderId }).update({
+    // 🧩 Compliance Checks
+    const reasons = [];
+    const now = new Date();
+
+    if (truck.insurance_expiry_date && new Date(truck.insurance_expiry_date) < now)
+      reasons.push("Truck insurance expired");
+    if (truck.inspection_expiry_date && new Date(truck.inspection_expiry_date) < now)
+      reasons.push("Truck inspection expired");
+
+    if (trailer) {
+      if (trailer.insurance_expiry_date && new Date(trailer.insurance_expiry_date) < now)
+        reasons.push("Trailer insurance expired");
+      if (trailer.inspection_expiry_date && new Date(trailer.inspection_expiry_date) < now)
+        reasons.push("Trailer inspection expired");
+    }
+
+    if (reasons.length > 0) {
+      console.log("❌ Compliance failed reasons:", reasons);
+      return res.status(400).json({ allowed: false, reasons });
+    }
+
+    // ✅ Update order with correct numeric IDs
+    await db("orders").where({ id: orderId }).update({
       driver_id,
-      truck_id,
-      trailer_id: trailer_id || null,
-      status: 'assigned',
+      truck_id: truck.truck_id,
+      trailer_id: trailer ? trailer.trailer_id : null,
+      status: "assigned",
       updated_at: db.fn.now(),
     });
 
-    res.json({ ok: true, message: 'Order assigned successfully.' });
+    console.log("✅ Order assigned successfully!");
+    res.json({ ok: true, message: "Order assigned successfully." });
   } catch (err) {
-    console.error('❌ assignOrder:', err);
-    res.status(500).json({ error: 'Failed to assign order.' });
+    console.error("❌ assignOrder Error:", err);
+    res.status(500).json({ error: "Failed to assign order." });
   }
 }
 

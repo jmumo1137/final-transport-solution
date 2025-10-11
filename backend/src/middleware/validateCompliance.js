@@ -47,10 +47,10 @@ async function validateDriverCompliance(req, res, next) {
   }
 }
 
-// 🚛 TRUCK / 🚚 TRAILER COMPLIANCE
+// 🚛 TRUCK / 🚚 TRAILER COMPLIANCE (Fixed)
 async function validateTruckTrailerCompliance(req, res, next) {
   try {
-    const { truck_id, trailer_id } = req.body;
+    const { truck_id, trailer_id } = req.body; // these are actually plate numbers
     const override = req.headers['x-override'] === 'true';
     const reasons = [];
 
@@ -58,12 +58,12 @@ async function validateTruckTrailerCompliance(req, res, next) {
 
     // ---- TRUCK CHECK ----
     if (truck_id) {
-      console.log('🔍 Checking truck_id:', truck_id);
-      const truck = await db('trucks').where({ truck_id }).first();
+      console.log('🔍 Checking truck plate:', truck_id);
+      const truck = await db('trucks').where({ plate_number: truck_id }).first();
       console.log('✅ Truck fetched:', truck);
 
       if (!truck) {
-        reasons.push('Truck not found');
+        reasons.push(`Truck with plate ${truck_id} not found`);
       } else {
         if (!truck.insurance_expiry_date)
           reasons.push('Truck insurance expiry date not set');
@@ -80,12 +80,12 @@ async function validateTruckTrailerCompliance(req, res, next) {
 
     // ---- TRAILER CHECK ----
     if (trailer_id) {
-      console.log('🔍 Checking trailer_id:', trailer_id);
-      const trailer = await db('trailers').where({ trailer_id }).first();
+      console.log('🔍 Checking trailer plate:', trailer_id);
+      const trailer = await db('trailers').where({ plate_number: trailer_id }).first();
       console.log('✅ Trailer fetched:', trailer);
 
       if (!trailer) {
-        reasons.push('Trailer not found');
+        reasons.push(`Trailer with plate ${trailer_id} not found`);
       } else {
         if (!trailer.insurance_expiry_date)
           reasons.push('Trailer insurance expiry date not set');
@@ -114,10 +114,10 @@ async function validateTruckTrailerCompliance(req, res, next) {
     res.status(500).json({
       error: 'Truck/Trailer compliance check failed',
       message: err.message,
-      stack: err.stack,
     });
   }
 }
+
 
 
 module.exports = { validateDriverCompliance, validateTruckTrailerCompliance };
