@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { selectToken, selectUserRole } from './features/auth/authSlice';
 
 // Import pages
+import LandingPage from './pages/LandingPage';
 import LoginForm from './pages/LoginForm';
 import Dashboard from './pages/Dashboard';
 import CreateOrder from './pages/CreateOrder';
@@ -40,6 +41,7 @@ function App() {
       {token && <Sidebar />} {/* Show sidebar only if logged in */}
       <div style={{ marginLeft: token ? '200px' : '0', padding: '20px' }}>
         <Routes>
+        <Route path="/" element={token ? <Navigate to="/dashboard" /> : <LandingPage />} />
           <Route path="/login" element={<LoginForm />} />
           <Route path="/dashboard" element={token ? <DashboardWrapper /> : <Navigate to="/login" />} />
           <Route path="/driver" element={token ? <DriverDashboard /> : <Navigate to="/login" />} />
