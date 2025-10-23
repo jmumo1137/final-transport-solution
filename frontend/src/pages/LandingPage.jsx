@@ -20,9 +20,9 @@ function Logo({ className = "h-8 w-auto" }) {
           <stop offset="1" stopColor="#06b6d4" />
         </linearGradient>
       </defs>
-      <rect x="0" y="0" width="240" height="40" rx="8" fill="url(#portalGradient)" />
+      <rect x="0" y="0" width="240" height="40" rx="20" fill="url(#portalGradient)" />
       <text
-        x="54"
+        x="44"
         y="26"
         fontFamily="Inter, system-ui"
         fontWeight="700"

@@ -9,6 +9,9 @@ export default function DriverDashboard() {
   const [assignedOrders, setAssignedOrders] = useState([]);
   const [files, setFiles] = useState({});
   const [licenseNumber, setLicenseNumber] = useState("");
+  const [licenseExpiry, setLicenseExpiry] = useState("");
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [safetyGuidelinesAccepted, setSafetyGuidelinesAccepted] = useState(false);
   const role = useSelector(selectUserRole);
   const userId = useSelector(selectUserId);
   const navigate = useNavigate();
@@ -19,6 +22,8 @@ export default function DriverDashboard() {
       const res = await api.get(`/api/drivers/${userId}`);
       setDriverInfo(res.data);
       setLicenseNumber(res.data.license_number || "");
+      setPolicyAccepted(res.data.policy_accepted || false);
+      setSafetyGuidelinesAccepted(res.data.safety_guidelines_accepted || false);
     } catch (err) {
       console.error("fetchDriverInfo error:", err.response?.data || err.message);
     }
@@ -75,6 +80,17 @@ export default function DriverDashboard() {
       alert("Failed to update license number");
     }
   };
+  const handleLicenseExpiryUpdate = async () => {
+  if (!licenseExpiry) return alert("Please enter the license expiry date.");
+  try {
+    const res = await api.put(`/api/drivers/${userId}`, { license_expiry_date: licenseExpiry });
+    alert("License expiry date updated successfully");
+    setDriverInfo(res.data);
+  } catch (err) {
+    console.error("License expiry update error:", err.response?.data || err.message);
+    alert("Failed to update license expiry date");
+  }
+};
 
   // ---------------------- Document Status ----------------------
   const getExpiryTooltip = (date) => {
@@ -103,6 +119,10 @@ export default function DriverDashboard() {
   };
 
 const handleLoadOrder = async (orderId) => {
+  if (!policyAccepted || !safetyGuidelinesAccepted) {
+    return alert("You must accept the company policies and safety guidelines before loading any orders.");
+  }
+
   try {
     const quantity = prompt("Enter quantity loaded (in tons or liters):");
     if (!quantity || isNaN(quantity) || quantity <= 0) {
@@ -115,7 +135,7 @@ const handleLoadOrder = async (orderId) => {
     });
 
     alert(res.data.message || "Order marked as loaded!");
-    fetchAssignedOrders(); // refresh list
+    fetchAssignedOrders();
   } catch (err) {
     console.error("handleLoadOrder error:", err.response?.data || err.message);
     alert(err.response?.data?.message || "Failed to mark order as loaded.");
@@ -123,6 +143,10 @@ const handleLoadOrder = async (orderId) => {
 };
 
 const handleStartJourney = async (orderId) => {
+  if (!policyAccepted || !safetyGuidelinesAccepted) {
+    return alert("You must accept the company policies and safety guidelines before starting the journey.");
+  }
+
   try {
     const confirmStart = window.confirm("Start the journey for this order?");
     if (!confirmStart) return;
@@ -130,24 +154,52 @@ const handleStartJourney = async (orderId) => {
     const res = await api.post(`/api/orders/${orderId}/enroute`);
 
     alert(res.data.message || "Journey started successfully!");
-    fetchAssignedOrders(); // ✅ refresh orders after status change
+    fetchAssignedOrders();
   } catch (err) {
     console.error("❌ handleStartJourney error:", err);
 
     if (err.response) {
-      // Backend responded with an error (like 400 or 500)
       alert(err.response.data.message || "Failed to start journey.");
     } else if (err.request) {
-      // No response (Network / CORS / server down)
       alert("Network error or server unavailable. Please check your connection.");
-      // Safe refresh to reinitialize API session
       setTimeout(() => window.location.reload(), 1500);
     } else {
-      // Unknown client-side error
       alert("Unexpected error occurred. Please try again.");
     }
   }
 };
+
+// ---------------------- Log Cash ----------------------
+const handleLogCash = async (orderId) => {
+  try {
+    const cash = prompt("Enter cash spent (in KES):");
+    if (!cash || isNaN(cash) || cash <= 0) {
+      alert("Please enter a valid amount greater than zero.");
+      return;
+    }
+    const res = await api.post(`/api/orders/${orderId}/cash`, { cash_spent: Number(cash) });
+    alert(res.data.message || "Cash logged successfully!");
+    fetchAssignedOrders();
+  } catch (err) {
+    console.error("handleLogCash error:", err.response?.data || err.message);
+    alert(err.response?.data?.message || "Failed to log cash spent.");
+  }
+};
+
+// ---------------------- Mark Delivered ----------------------
+const handleMarkDelivered = async (orderId) => {
+  try {
+    const confirmDeliver = window.confirm("Mark this order as delivered?");
+    if (!confirmDeliver) return;
+    const res = await api.post(`/api/orders/${orderId}/delivered`);
+    alert(res.data.message || "Order marked as delivered!");
+    fetchAssignedOrders();
+  } catch (err) {
+    console.error("handleMarkDelivered error:", err.response?.data || err.message);
+    alert(err.response?.data?.message || "Failed to mark as delivered.");
+  }
+};
+
 
 
   // ---------------------- Render Driver Info ----------------------
@@ -227,6 +279,257 @@ const handleStartJourney = async (orderId) => {
             </label>
             <button onClick={handleLicenseUpdate} style={{ marginLeft: 10 }}>Update License Number</button>
           </div>
+          <div style={{ marginTop: 10 }}>
+  <label>
+    License Expiry Date:
+    <input 
+      type="date" 
+      value={licenseExpiry || (driverInfo?.license_expiry_date ? driverInfo.license_expiry_date.split('T')[0] : '')} 
+      onChange={(e) => setLicenseExpiry(e.target.value)} 
+      style={{ marginLeft: 5 }} 
+    />
+  </label>
+  <button onClick={handleLicenseExpiryUpdate} style={{ marginLeft: 10 }}>
+    Update Expiry Date
+  </button>
+</div>
+
+{/* --- Personal Information Section --- */}
+<div style={{ marginTop: 30 }}>
+  <h3>Personal Information</h3>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Full Name:</label>
+    <input
+      type="text"
+      value={driverInfo.full_name || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, full_name: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <div style={{ marginTop: 10 }}>
+    <label>ID Number:</label>
+    <input
+      type="text"
+      value={driverInfo.id_number || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, id_number: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Phone Number:</label>
+    <input
+      type="text"
+      value={driverInfo.phone_number || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, phone_number: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Email:</label>
+    <input
+      type="email"
+      value={driverInfo.email || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, email: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Address:</label>
+    <input
+      type="text"
+      value={driverInfo.address || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, address: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <button
+    onClick={async () => {
+      try {
+        const payload = {
+          full_name: driverInfo.full_name,
+          id_number: driverInfo.id_number,
+          phone_number: driverInfo.phone_number,
+          email: driverInfo.email,
+          address: driverInfo.address,
+        };
+        const res = await api.put(`/api/drivers/${userId}`, payload);
+        alert("Personal information updated successfully!");
+        setDriverInfo(res.data);
+      } catch (err) {
+        console.error("Personal info update error:", err);
+        alert("Failed to update personal information");
+      }
+    }}
+    style={{
+      marginTop: 15,
+      backgroundColor: "#007bff",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: 3,
+      cursor: "pointer",
+    }}
+  >
+    Save Personal Info
+  </button>
+</div>
+{/* --- Policy Acceptance Section --- */}
+          <div style={{ marginTop: 30 }}>
+            <h3>Policy Acceptance</h3>
+
+            <div style={{ marginTop: 10 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={policyAccepted}
+                  onChange={(e) => setPolicyAccepted(e.target.checked)}
+                  style={{ marginRight: 5 }}
+                />
+                I accept the company policies
+              </label>
+            </div>
+
+            <div style={{ marginTop: 10 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={safetyGuidelinesAccepted}
+                  onChange={(e) => setSafetyGuidelinesAccepted(e.target.checked)}
+                  style={{ marginRight: 5 }}
+                />
+                I have read and agree to the safety guidelines
+              </label>
+            </div>
+
+            <button
+              onClick={async () => {
+                try {
+                  const payload = {
+                   safety_policy_accepted: policyAccepted,
+                   driver_policy_accepted: safetyGuidelinesAccepted,
+                   company_policy_accepted: true,
+                  };
+                  const res = await api.put(`/api/drivers/${userId}/policies`, payload);
+                  alert("Policy acceptance updated successfully!");
+                  setDriverInfo(res.data);
+                } catch (err) {
+                  console.error("Policy update error:", err);
+                  alert("Failed to update policy acceptance");
+                }
+              }}
+              style={{
+                marginTop: 15,
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                padding: "6px 12px",
+                borderRadius: 3,
+                cursor: "pointer",
+              }}
+            >
+              Save Policy Acceptance
+            </button>
+          </div>
+
+{/* --- Next of Kin & Referee Section --- */}
+<div style={{ marginTop: 30 }}>
+  <h3>Next of Kin & Referee Information</h3>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Next of Kin Name:</label>
+    <input
+      type="text"
+      value={driverInfo.next_of_kin_name || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, next_of_kin_name: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Next of Kin Phone:</label>
+    <input
+      type="text"
+      value={driverInfo.next_of_kin_phone || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, next_of_kin_phone: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Referee Name:</label>
+    <input
+      type="text"
+      value={driverInfo.referee_name || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, referee_name: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <div style={{ marginTop: 10 }}>
+    <label>Referee Phone:</label>
+    <input
+      type="text"
+      value={driverInfo.referee_phone || ""}
+      onChange={(e) =>
+        setDriverInfo({ ...driverInfo, referee_phone: e.target.value })
+      }
+      style={{ marginLeft: 10 }}
+    />
+  </div>
+
+  <button
+    onClick={async () => {
+      try {
+        const payload = {
+          next_of_kin_name: driverInfo.next_of_kin_name,
+          next_of_kin_phone: driverInfo.next_of_kin_phone,
+          referee_name: driverInfo.referee_name,
+          referee_phone: driverInfo.referee_phone,
+        };
+        const res = await api.put(`/api/drivers/${userId}`, payload);
+        alert("Next of Kin & Referee info updated successfully!");
+        setDriverInfo(res.data);
+      } catch (err) {
+        console.error("Kin/Referee update error:", err);
+        alert("Failed to update Kin & Referee info");
+      }
+    }}
+    style={{
+      marginTop: 15,
+      backgroundColor: "#007bff",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: 3,
+      cursor: "pointer",
+    }}
+  >
+    Save Information
+  </button>
+</div>
+
         </>
       ) : <p>No driver info found</p>}
     </div>

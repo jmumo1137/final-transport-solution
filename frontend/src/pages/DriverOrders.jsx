@@ -129,13 +129,6 @@ export default function DriverOrders() {
                     </button>
                   )}
 
-                  {/* Log Expenses button */}
-                  <button
-                    onClick={() => navigate(`/expenses/${order.id}`)}
-                    style={{ marginLeft: 5 }}
-                  >
-                    Log Expenses
-                  </button>
                 </td>
               </tr>
             ))}

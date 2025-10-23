@@ -65,6 +65,7 @@ export default function Fuel() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Fuel — Order {id}</h1>
+      <button onClick={() => navigate(-1)}>Back</button>
 
       {/* Upload Form */}
       <div style={{ marginBottom: 20 }}>

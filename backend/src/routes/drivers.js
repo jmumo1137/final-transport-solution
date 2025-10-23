@@ -9,6 +9,8 @@ router.get('/drivers', driversController.getAllDrivers);
 
 // GET single driver
 router.get('/:id', driversController.getDriver);
+//  PUT update driver policies
+router.put('/:id/policies', driversController.updateDriverPolicies);
 
 // ✅ Allow multiple named fields for driver document uploads
 router.put(
