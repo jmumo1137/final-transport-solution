@@ -10,6 +10,9 @@ router.get('/', authenticateToken, trucksController.getTrucks);
 // GET available trucks
 router.get('/available', authenticateToken, trucksController.getAvailableTrucks);
 
+// Export trucks
+router.get('/export', authenticateToken, trucksController.exportTrucks);
+
 // POST add truck with file uploads
 router.post(
   '/',

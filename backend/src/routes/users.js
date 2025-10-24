@@ -6,7 +6,26 @@ const router = express.Router();
 router.get('/drivers', async (req, res) => {
   const { search } = req.query;
   try {
-    let query = db('users').where({ role: 'driver' });
+    let query = db('users').where({ role: 'driver' })
+    .select(
+        'id',
+        'full_name',
+        'username',
+        'id_number',
+        'phone_number',
+        'email',
+        'license_number',
+        'license_expiry_date',
+        'license_file',
+        'passport_photo',
+        'good_conduct_certificate',
+        'port_pass',
+        'address',
+        'next_of_kin_name',
+        'next_of_kin_phone',
+        'referee_name',
+        'referee_phone'
+      );
     if (search) query = query.andWhere('username', 'like', `%${search}%`);
     const drivers = await query.select('id', 'username');
     res.json(drivers);

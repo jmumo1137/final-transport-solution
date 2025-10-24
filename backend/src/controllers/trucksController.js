@@ -1,6 +1,6 @@
 // backend/src/controllers/trucksController.js
 const db = require('../db');
-
+const { Parser } = require('json2csv'); 
 
 async function addTruck(req, res) {
   try {
@@ -71,6 +71,49 @@ async function getAvailableTrucks(req, res) {
     res.status(500).json({ message: 'Internal server error' });
   }
 }
+// Export trucks for admin download
+async function exportTrucks(req, res) {
+  try {
+    const trucks = await db('trucks').select(
+      'plate_number',
+      'comesa_number',
+      'comesa_expiry_date',
+      'insurance_expiry_date',
+      'inspection_expiry_date',
+      'created_at'
+    );
 
-module.exports = { addTruck, getTrucks, getAvailableTrucks };
+    if (!trucks.length) {
+      return res.status(404).json({ message: 'No trucks found' });
+    }
+
+    const formatted = trucks.map((t) => ({
+      Plate_Number: t.plate_number || 'N/A',
+      COMESA_Number: t.comesa_number || 'N/A',
+      COMESA_Expiry: t.comesa_expiry_date
+        ? new Date(t.comesa_expiry_date).toISOString().split('T')[0]
+        : 'N/A',
+      Insurance_Expiry: t.insurance_expiry_date
+        ? new Date(t.insurance_expiry_date).toISOString().split('T')[0]
+        : 'N/A',
+      Inspection_Expiry: t.inspection_expiry_date
+        ? new Date(t.inspection_expiry_date).toISOString().split('T')[0]
+        : 'N/A',
+      Registered_On: t.created_at
+        ? new Date(t.created_at).toISOString().split('T')[0]
+        : 'N/A',
+    }));
+
+    const parser = new Parser();
+    const csv = parser.parse(formatted);
+
+    res.header('Content-Type', 'text/csv');
+    res.attachment('trucks_export.csv');
+    res.send(csv);
+  } catch (error) {
+    console.error('Error exporting trucks:', error);
+    res.status(500).json({ message: 'Failed to export trucks' });
+  }
+}
+module.exports = { addTruck, getTrucks, getAvailableTrucks, exportTrucks };
 

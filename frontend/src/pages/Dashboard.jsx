@@ -5,8 +5,8 @@ import { selectUserRole } from "../features/auth/authSlice";
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
 
 // Export libs (require install if you want client-side export)
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
@@ -257,33 +257,170 @@ useEffect(() => {
   // Export helpers (client-side)
   const exportTrucksRenewalPDF = () => {
     const doc = new jsPDF();
-    doc.text("trucks Due for Renewal", 14, 16);
-    const rows = trucks
-      .filter((t) => daysUntil(t.insuranceExpiry) <= 30)
-      .map((t) => [t.plate_number || "", t.model || "", t.insuranceExpiry || ""]);
-    doc.autoTable({
-      head: [["Plate", "Model", "Insurance Expiry"]],
+
+    // Header
+    doc.setFontSize(14);
+    doc.text("Truck Renewals Report", 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+
+    // Table Columns
+    const columns = [
+      "Truck Plate",
+      "Insurance Expiry",
+      "Comesa Expiry",
+      "Inspection Expiry",
+    ];
+
+    // Map DB data to rows
+    const rows = trucks.map((truck) => [
+      truck.plate_number || "-",
+      truck.insurance_expiry_date || "-",
+      truck.comesa_expiry_date || "-",
+      truck.inspection_expiry_date || "-",
+    ]);
+
+    // ✅ Generate table
+    autoTable(doc, {
+      head: [columns],
       body: rows,
-      startY: 24,
+      startY: 28,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [41, 128, 185] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
     });
-    doc.save("trucks_due_for_renewal.pdf");
+
+    // ✅ Save the PDF
+    doc.save("TrucksRenewalReport.pdf");
   };
 
-  const exportDriversComplianceExcel = () => {
-    const data = drivers
-      .filter((d) => daysUntil(d.licenseExpiry) <= 30 || (d.medicalExpiry && daysUntil(d.medicalExpiry) <= 30))
-      .map((d) => ({
-        Name: d.username || d.name,
-        Phone: d.phone || "",
-        "License Expiry": d.licenseExpiry || "",
-        "Medical Expiry": d.medicalExpiry || "",
-      }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Drivers Compliance");
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buf], { type: "application/octet-stream" }), "drivers_compliance.xlsx");
+const exportDriversRenewalPDF = () => {
+  const doc = new jsPDF();
+
+  // 🧾 Header
+  doc.setFontSize(14);
+  doc.text("Drivers Compliance & License Renewals", 14, 15);
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+
+  // ✅ Safety check
+  const driverList = Array.isArray(drivers)
+    ? drivers
+    : drivers?.data && Array.isArray(drivers.data)
+    ? drivers.data
+    : [];
+
+  if (driverList.length === 0) {
+    alert("No driver data found to export.");
+    return;
+  }
+
+  // ⏳ Helper: Days until expiry
+  const daysUntil = (dateStr) => {
+    if (!dateStr) return null;
+    const today = new Date().setHours(0, 0, 0, 0);
+    const expiry = new Date(dateStr).getTime();
+    return Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
   };
+
+  // 🧩 Table columns
+  const columns = [
+    "Driver Name",
+    "Phone Number",
+    "License Number",
+    "License Expiry",
+    "Address",
+    "Next of Kin",
+    "Compliance",
+  ];
+
+  // 🧠 Build table rows with compliance status
+  const rows = driverList.map((d) => {
+    const daysLeft = daysUntil(d.license_expiry_date);
+    let compliance = "Expired";
+
+    if (daysLeft !== null && daysLeft >= 0) {
+      if (daysLeft <= 30) compliance = "Expiring Soon";
+      else compliance = "Compliant";
+    }
+
+    return [
+      d.full_name || d.username || "-",
+      d.phone_number || "-",
+      d.license_number || "-",
+      d.license_expiry_date ? d.license_expiry_date.split("T")[0] : "-",
+      d.address || "-",
+      `${d.next_of_kin_name || "-"} (${d.next_of_kin_phone || "-"})`,
+      compliance,
+    ];
+  });
+
+  // 📊 Summary counts
+  const compliantCount = rows.filter((r) => r[6] === "Compliant").length;
+  const expiringCount = rows.filter((r) => r[6] === "Expiring Soon").length;
+  const expiredCount = rows.filter((r) => r[6] === "Expired").length;
+
+  // ✍️ Add summary line before table
+  doc.setFontSize(11);
+  doc.text(
+    `Summary → Compliant: ${compliantCount} | Expiring Soon: ${expiringCount} | Expired: ${expiredCount}`,
+    14,
+    30
+  );
+
+  // 🧾 Generate color-coded table
+  autoTable(doc, {
+    head: [columns],
+    body: rows,
+    startY: 35,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [41, 128, 185] },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    didParseCell: function (data) {
+      if (data.section === "body") {
+        const driver = driverList[data.row.index];
+        const daysLeft = daysUntil(driver?.license_expiry_date);
+
+        if (daysLeft !== null) {
+          if (daysLeft < 0) {
+            // ❌ Expired
+            data.cell.styles.fillColor = [255, 204, 204]; // Light red
+          } else if (daysLeft <= 30) {
+            // ⚠️ Expiring soon
+            data.cell.styles.fillColor = [255, 255, 153]; // Light yellow
+          } else {
+            // ✅ Compliant
+            data.cell.styles.fillColor = [204, 255, 204]; // Light green
+          }
+        }
+      }
+    },
+  });
+
+  // 💾 Save PDF file
+  doc.save("DriversRenewalReport.pdf");
+};
+
+// const exportDriversComplianceExcel = () => {
+//   const data = drivers.map((d) => ({
+//     "Driver Name": d.full_name || d.username || "-",
+//     "Phone Number": d.phone_number || "-",
+//     "License Number": d.license_number || "-",
+//     "License Expiry": d.license_expiry_date || "-",
+//     "Address": d.address || "-",
+//     "Next of Kin": `${d.next_of_kin_name || "-"} (${d.next_of_kin_phone || "-"})`,
+//   }));
+
+//   const ws = XLSX.utils.json_to_sheet(data);
+//   const wb = XLSX.utils.book_new();
+//   XLSX.utils.book_append_sheet(wb, ws, "Drivers");
+//   const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+//   saveAs(new Blob([wbout], { type: "application/octet-stream" }), "DriversCompliance.xlsx");
+// };
+//  <button onClick={exportDriversComplianceExcel} style={secondaryButtonStyle}>
+//               Export Drivers XLSX
+//             </button>
+
     const exportAlertsPDF = () => {
     const doc = new jsPDF();
     doc.text("System Alerts Report", 14, 16);
@@ -358,9 +495,10 @@ useEffect(() => {
             <button onClick={exportTrucksRenewalPDF} style={secondaryButtonStyle}>
               Export trucks PDF
             </button>
-            <button onClick={exportDriversComplianceExcel} style={secondaryButtonStyle}>
-              Export Drivers XLSX
-            </button>
+            <button onClick={exportDriversRenewalPDF} style={secondaryButtonStyle}>
+            Export Drivers PDF
+           </button>
+           
           </div>
         </div>
       </div>

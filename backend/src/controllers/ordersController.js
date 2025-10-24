@@ -16,13 +16,16 @@ async function createOrder(req, res) {
     if (!customer_name || !pickup || !destination)
       return res.status(400).json({ message: 'Customer, pickup, and destination are required.' });
 
+    const userId = req.user?.id; // from authenticateToken
     const waybill = generateWaybill();
+
     const [id] = await db('orders').insert({
       customer_name,
       pickup,
       destination,
       waybill,
       status: 'created',
+      created_by: userId || null,
       created_at: db.fn.now(),
       updated_at: db.fn.now(),
     });
@@ -35,16 +38,26 @@ async function createOrder(req, res) {
   }
 }
 
-// ---------- LIST ----------
+// ---------- LIST (role-based filter) ----------
 async function listOrders(req, res) {
   try {
-    const orders = await db('orders').orderBy('created_at', 'desc');
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    let query = db('orders').orderBy('created_at', 'desc');
+
+    if (role === 'consignee') {
+      query = query.where('created_by', userId);
+    }
+
+    const orders = await query;
     res.json(orders);
   } catch (error) {
     console.error('❌ listOrders:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }
+
 
 // ✅ Assign Order (Fixed)
 async function assignOrder(req, res) {

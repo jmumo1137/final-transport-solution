@@ -49,12 +49,21 @@ export default function LoginForm() {
     }));
 
     // Redirect based on role
-    if (userRole === 'driver') {
-      navigate('/driver');
-    } else {
-      navigate('/dashboard');
+     switch (userRole) {
+      case 'driver':
+        navigate('/driver'); 
+        break;
+      case 'consignee': // customer
+        navigate('/customer-dashboard'); 
+        break;
+      case 'dispatcher':
+      case 'admin':
+      case 'operations':
+        navigate('/dashboard'); // main dashboard for operations/admin
+        break;
+      default:
+        navigate('/'); // fallback
     }
-
   } catch (err) {
     console.error('Login/Register error:', err);
     alert(err.response?.data?.message || 'Error occurred!');
@@ -88,8 +97,7 @@ export default function LoginForm() {
           >
             <option value="dispatcher">Dispatcher</option>
             <option value="driver">Driver</option>
-            <option value="admin">Admin</option>
-            <option value="consignee">Consignee</option>
+            <option value="consignee">Customer</option>
           </select>
         )}
         <button type="submit" style={{ marginTop: 10 }}>

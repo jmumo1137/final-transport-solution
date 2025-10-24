@@ -16,7 +16,13 @@ export default function Sidebar() {
 
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [openSubmenu, setOpenSubmenu] = useState(null);
+    const [openSubmenu, setOpenSubmenu] = useState(() => {
+        // Auto-open Orders submenu if on orders-related path
+        if (role === 'consignee' && location.pathname.startsWith('/customer-dashboard')) return 'Orders';
+        if (role === 'consignee' && location.pathname.startsWith('/orders/create')) return 'Orders';
+        if (role !== 'consignee' && location.pathname.startsWith('/orders')) return 'Orders';
+        return null;
+    });
 
     const toggleSidebar = () => setCollapsed(!collapsed);
     const toggleMobileSidebar = () => setMobileOpen(!mobileOpen);
@@ -33,17 +39,17 @@ export default function Sidebar() {
     const menuItems = [
         {
             name: 'Dashboard',
-            path: '/dashboard',
+            path: role === 'consignee' ? '/customer-dashboard' : '/dashboard',
             icon: <FaTachometerAlt />,
-            roles: ['admin', 'dispatcher', 'operations', 'driver', 'customer', 'accounts'],
+            roles: ['admin', 'dispatcher', 'operations', 'driver', 'consignee', 'accounts'],
         },
         {
             name: 'Orders',
             icon: <FaClipboardList />,
-            roles: ['admin', 'dispatcher', 'operations', 'customer'],
-            subItems: role === 'customer'
+            roles: ['admin', 'dispatcher', 'operations', 'consignee'],
+            subItems: role === 'consignee'
                 ? [
-                    { name: 'My Orders', path: '/orders' },
+                    { name: 'View Orders', path: '/customer-dashboard' },
                     { name: 'Create Order', path: '/orders/create' },
                   ]
                 : [
@@ -99,56 +105,67 @@ export default function Sidebar() {
                     <ul>
                         {menuItems
                             .filter(item => item.roles.includes(role))
-                            .map(item => (
-                                <li
-                                    key={item.name}
-                                    className={`menu-item ${
-                                        location.pathname === item.path ||
-                                        (item.subItems && item.subItems.some(sub => sub.path === location.pathname))
-                                            ? 'active'
-                                            : ''
-                                    }`}
-                                    title={collapsed ? item.name : ''}
-                                >
-                                    {item.subItems ? (
-                                        <>
-                                            <div
-                                                className="menu-parent"
-                                                onClick={() => handleSubmenuToggle(item.name)}
-                                            >
-                                                <span className="icon">{item.icon}</span>
-                                                {!collapsed && (
-                                                    <span className="text">
-                                                        {item.name}
-                                                        <span className="arrow">
-                                                            {openSubmenu === item.name ? '▲' : '▼'}
-                                                        </span>
-                                                    </span>
-                                                )}
-                                            </div>
+                            .map(item => {
+                                const isDashboardActive = (role === 'consignee' && location.pathname.startsWith('/customer-dashboard') && item.path === '/customer-dashboard') ||
+                                                          (role !== 'consignee' && location.pathname.startsWith('/dashboard') && item.path === '/dashboard');
 
-                                            {!collapsed && openSubmenu === item.name && (
-                                                <ul className="submenu">
-                                                    {item.subItems.map(sub => (
-                                                        <li
-                                                            key={sub.path}
-                                                            className={location.pathname === sub.path ? 'active' : ''}
-                                                            onClick={() => setMobileOpen(false)}
-                                                        >
-                                                            <Link to={sub.path}>{sub.name}</Link>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <Link to={item.path} onClick={() => setMobileOpen(false)}>
-                                            <span className="icon">{item.icon}</span>
-                                            {!collapsed && <span className="text">{item.name}</span>}
-                                        </Link>
-                                    )}
-                                </li>
-                            ))}
+                                return (
+                                    <li
+                                        key={item.name}
+                                        className={`menu-item ${
+                                            isDashboardActive ||
+                                            (item.subItems && item.subItems.some(sub => 
+                                                location.pathname === sub.path ||
+                                                (role === 'consignee' && sub.path === '/customer-dashboard' && location.pathname.startsWith('/customer-dashboard'))
+                                            )) ? 'active' : ''
+                                        }`}
+                                        title={collapsed ? item.name : ''}
+                                    >
+                                        {item.subItems ? (
+                                            <>
+                                                <div
+                                                    className="menu-parent"
+                                                    onClick={() => handleSubmenuToggle(item.name)}
+                                                >
+                                                    <span className="icon">{item.icon}</span>
+                                                    {!collapsed && (
+                                                        <span className="text">
+                                                            {item.name}
+                                                            <span className="arrow">
+                                                                {openSubmenu === item.name ? '▲' : '▼'}
+                                                            </span>
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {!collapsed && openSubmenu === item.name && (
+                                                    <ul className="submenu">
+                                                        {item.subItems.map(sub => (
+                                                            <li
+                                                                key={sub.path}
+                                                                className={
+                                                                    location.pathname === sub.path ||
+                                                                    (role === 'consignee' && sub.path === '/customer-dashboard' && location.pathname.startsWith('/customer-dashboard'))
+                                                                        ? 'active'
+                                                                        : ''
+                                                                }
+                                                                onClick={() => setMobileOpen(false)}
+                                                            >
+                                                                <Link to={sub.path}>{sub.name}</Link>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <Link to={item.path} onClick={() => setMobileOpen(false)}>
+                                                <span className="icon">{item.icon}</span>
+                                                {!collapsed && <span className="text">{item.name}</span>}
+                                            </Link>
+                                        )}
+                                    </li>
+                                );
+                            })}
                     </ul>
                 </nav>
 
