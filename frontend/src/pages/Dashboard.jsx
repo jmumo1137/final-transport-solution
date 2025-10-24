@@ -255,44 +255,109 @@ useEffect(() => {
   };
 
   // Export helpers (client-side)
-  const exportTrucksRenewalPDF = () => {
-    const doc = new jsPDF();
+const exportTrucksRenewalPDF = () => {
+  const doc = new jsPDF();
 
-    // Header
-    doc.setFontSize(14);
-    doc.text("Truck Renewals Report", 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+  // ✅ Safety check
+  const truckList = Array.isArray(trucks)
+    ? trucks
+    : trucks?.data && Array.isArray(trucks.data)
+    ? trucks.data
+    : [];
 
-    // Table Columns
-    const columns = [
-      "Truck Plate",
-      "Insurance Expiry",
-      "Comesa Expiry",
-      "Inspection Expiry",
-    ];
+  if (truckList.length === 0) {
+    alert("No truck data found to export.");
+    return;
+  }
 
-    // Map DB data to rows
-    const rows = trucks.map((truck) => [
+  // 🧾 Header
+  doc.setFontSize(14);
+  doc.text("Truck Renewals Report", 14, 15);
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+
+  // ⏳ Helper: Days until expiry
+  const daysUntil = (dateStr) => {
+    if (!dateStr) return null;
+    const today = new Date().setHours(0, 0, 0, 0);
+    const expiry = new Date(dateStr).getTime();
+    return Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+  };
+
+  // 🧠 Compute compliance per truck
+  const rows = truckList.map((truck) => {
+    const insuranceDays = daysUntil(truck.insurance_expiry_date);
+    const comesaDays = daysUntil(truck.comesa_expiry_date);
+    const inspectionDays = daysUntil(truck.inspection_expiry_date);
+
+    let compliance = "Compliant";
+
+    if (
+      (insuranceDays !== null && insuranceDays < 0) ||
+      (comesaDays !== null && comesaDays < 0) ||
+      (inspectionDays !== null && inspectionDays < 0)
+    ) {
+      compliance = "Expired";
+    } else if (
+      (insuranceDays !== null && insuranceDays <= 30) ||
+      (comesaDays !== null && comesaDays <= 30) ||
+      (inspectionDays !== null && inspectionDays <= 30)
+    ) {
+      compliance = "Expiring Soon";
+    }
+
+    return [
       truck.plate_number || "-",
       truck.insurance_expiry_date || "-",
       truck.comesa_expiry_date || "-",
       truck.inspection_expiry_date || "-",
-    ]);
+      compliance,
+    ];
+  });
 
-    // ✅ Generate table
-    autoTable(doc, {
-      head: [columns],
-      body: rows,
-      startY: 28,
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [41, 128, 185] },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-    });
+  // 🧩 Table columns
+  const columns = [
+    "Truck Plate",
+    "Insurance Expiry",
+    "Comesa Expiry",
+    "Inspection Expiry",
+    "Compliance",
+  ];
 
-    // ✅ Save the PDF
-    doc.save("TrucksRenewalReport.pdf");
-  };
+  // 📊 Summary counts
+  const total = rows.length;
+  const expired = rows.filter((r) => r[4] === "Expired").length;
+  const expiringSoon = rows.filter((r) => r[4] === "Expiring Soon").length;
+  const compliant = rows.filter((r) => r[4] === "Compliant").length;
+
+  doc.setFontSize(10);
+  doc.text(
+    `Summary: Total ${total} | Expired ${expired} | Expiring Soon ${expiringSoon} | Compliant ${compliant}`,
+    14,
+    28
+  );
+
+  // 🧾 Generate color-coded table
+  autoTable(doc, {
+    head: [columns],
+    body: rows,
+    startY: 32,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [41, 128, 185] },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    didParseCell: function (data) {
+      if (data.section === "body" && data.column.index === 4) {
+        const complianceText = data.cell.text[0];
+        if (complianceText === "Expired") data.cell.styles.fillColor = [255, 204, 204]; // red
+        else if (complianceText === "Expiring Soon") data.cell.styles.fillColor = [255, 255, 153]; // yellow
+      }
+    },
+  });
+
+  // 💾 Save PDF
+  doc.save("TrucksRenewalReport.pdf");
+};
+
 
 const exportDriversRenewalPDF = () => {
   const doc = new jsPDF();
@@ -401,6 +466,109 @@ const exportDriversRenewalPDF = () => {
   doc.save("DriversRenewalReport.pdf");
 };
 
+const exportTrailerCompliancePDF = () => {
+  const doc = new jsPDF();
+
+  // 🧾 Header
+  doc.setFontSize(14);
+  doc.text("Trailer Compliance & Registration Report", 14, 15);
+  doc.setFontSize(10);
+  const generatedDate = new Date();
+  doc.text(`Generated on: ${generatedDate.toLocaleString()}`, 14, 22);
+
+  // ✅ Safety check
+  const trailerList = Array.isArray(trailers) ? trailers : trailers?.data || [];
+  if (trailerList.length === 0) {
+    alert("No trailer data found to export.");
+    return;
+  }
+
+  // ⏳ Helper: Days until expiry
+  const daysUntil = (dateStr) => {
+    if (!dateStr) return null;
+    const today = new Date().setHours(0, 0, 0, 0);
+    const expiry = new Date(dateStr).getTime();
+    return Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+  };
+
+  // 🧠 Compute compliance and summary
+  let compliantCount = 0,
+      expiringCount = 0,
+      expiredCount = 0;
+
+  const rows = trailerList.map((t) => {
+    const expiries = [
+      t.insurance_expiry_date,
+      t.inspection_expiry_date,
+      t.comesa_expiry_date,
+    ]
+      .map(daysUntil)
+      .filter((d) => d !== null);
+
+    let compliance = "Compliant";
+    const minDays = expiries.length ? Math.min(...expiries) : null;
+
+    if (minDays !== null) {
+      if (minDays < 0) {
+        compliance = "Expired";
+        expiredCount++;
+      } else if (minDays <= 30) {
+        compliance = "Expiring Soon";
+        expiringCount++;
+      } else {
+        compliantCount++;
+      }
+    } else {
+      compliantCount++;
+    }
+
+    return [
+      t.plate_number || "-",
+      t.insurance_expiry_date || "-",
+      t.inspection_expiry_date || "-",
+      t.comesa_expiry_date || "-",
+      compliance,
+    ];
+  });
+
+  // 📊 Summary at top
+  doc.setFontSize(11);
+  doc.text(
+    `Summary: Total ${trailerList.length}, Compliant ${compliantCount}, Expiring Soon ${expiringCount}, Expired ${expiredCount}`,
+    14,
+    28
+  );
+
+  // 🧩 Table columns
+  const columns = [
+    "Trailer Plate",
+    "Insurance Expiry",
+    "Inspection Expiry",
+    "COMESA Expiry",
+    "Compliance",
+  ];
+
+  // 🧾 Generate table with color for compliance
+  autoTable(doc, {
+    head: [columns],
+    body: rows,
+    startY: 34, // leave space for summary
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [41, 128, 185] },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    didParseCell: function (data) {
+      if (data.section === "body" && data.column.index === 4) {
+        const text = data.cell.raw;
+        if (text === "Expired") data.cell.styles.fillColor = [255, 204, 204]; // light red
+        else if (text === "Expiring Soon") data.cell.styles.fillColor = [255, 255, 153]; // light yellow
+      }
+    },
+  });
+
+  // 💾 Save PDF file
+  doc.save("TrailerComplianceReport.pdf");
+};
+
 // const exportDriversComplianceExcel = () => {
 //   const data = drivers.map((d) => ({
 //     "Driver Name": d.full_name || d.username || "-",
@@ -495,6 +663,9 @@ const exportDriversRenewalPDF = () => {
             <button onClick={exportTrucksRenewalPDF} style={secondaryButtonStyle}>
               Export trucks PDF
             </button>
+            <button onClick={exportTrailerCompliancePDF} style={secondaryButtonStyle}>
+            Export Trailers PDF
+           </button>
             <button onClick={exportDriversRenewalPDF} style={secondaryButtonStyle}>
             Export Drivers PDF
            </button>
