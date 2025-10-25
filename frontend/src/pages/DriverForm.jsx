@@ -10,13 +10,15 @@ export default function DriverForm({ driver, onClose }) {
     id_number: driver?.id_number || '',
     phone_number: driver?.phone_number || '',
     email: driver?.email || '',
-    address: driver?.address || '',
+    residence: driver?.residence || '',
+    kra_pin: driver?.kra_pin || '',
+    nssf: driver?.nssf || '',
+    nhif: driver?.nhif || '',
     license_number: driver?.license_number || '',
     license_expiry_date: driver?.license_expiry_date || '',
     next_of_kin_name: driver?.next_of_kin_name || '',
     next_of_kin_phone: driver?.next_of_kin_phone || '',
-    referee_name: driver?.referee_name || '',
-    referee_phone: driver?.referee_phone || '',
+    next_of_kin_relationship: driver?.next_of_kin_relationship || '',
     safety_policy_accepted: driver?.safety_policy_accepted || false,
     driver_policy_accepted: driver?.driver_policy_accepted || false,
     company_policy_accepted: driver?.company_policy_accepted || false,
@@ -39,7 +41,6 @@ export default function DriverForm({ driver, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     const data = new FormData();
     for (const key in formData) {
       if (formData[key] !== null && formData[key] !== undefined) {
@@ -74,22 +75,21 @@ export default function DriverForm({ driver, onClose }) {
           <input name="id_number" placeholder="ID Number" value={formData.id_number} onChange={handleChange} />
           <input name="phone_number" placeholder="Phone Number" value={formData.phone_number} onChange={handleChange} />
           <input name="email" placeholder="Email" value={formData.email} onChange={handleChange} />
-          <input name="address" placeholder="Address" value={formData.address} onChange={handleChange} />
+          <input name="residence" placeholder="Residence" value={formData.residence} onChange={handleChange} />
+          <input name="kra_pin" placeholder="KRA PIN" value={formData.kra_pin} onChange={handleChange} />
+          <input name="nssf" placeholder="NSSF" value={formData.nssf} onChange={handleChange} />
+          <input name="nhif" placeholder="NHIF" value={formData.nhif} onChange={handleChange} />
 
           {/* --- License & Compliance --- */}
           <h3>License & Compliance Documents</h3>
           <input name="license_number" placeholder="License Number" value={formData.license_number} onChange={handleChange} />
           <input name="license_expiry_date" type="date" value={formData.license_expiry_date} onChange={handleChange} />
-
           <label>License File:</label>
           <input name="license_file" type="file" onChange={handleChange} />
-
           <label>Passport Photo:</label>
           <input name="passport_photo" type="file" onChange={handleChange} />
-
           <label>Good Conduct Certificate:</label>
           <input name="good_conduct_certificate" type="file" onChange={handleChange} />
-
           <label>Port Pass:</label>
           <input name="port_pass" type="file" onChange={handleChange} />
 
@@ -97,11 +97,7 @@ export default function DriverForm({ driver, onClose }) {
           <h3>Next of Kin</h3>
           <input name="next_of_kin_name" placeholder="Next of Kin Name" value={formData.next_of_kin_name} onChange={handleChange} />
           <input name="next_of_kin_phone" placeholder="Next of Kin Phone" value={formData.next_of_kin_phone} onChange={handleChange} />
-
-          {/* --- Referee --- */}
-          <h3>Referee Details</h3>
-          <input name="referee_name" placeholder="Referee Name" value={formData.referee_name} onChange={handleChange} />
-          <input name="referee_phone" placeholder="Referee Phone" value={formData.referee_phone} onChange={handleChange} />
+          <input name="next_of_kin_relationship" placeholder="Relationship" value={formData.next_of_kin_relationship} onChange={handleChange} />
 
           {/* --- Policies --- */}
           <h3>Policy Agreements</h3>

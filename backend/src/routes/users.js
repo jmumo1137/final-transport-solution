@@ -20,11 +20,11 @@ router.get('/drivers', async (req, res) => {
         'passport_photo',
         'good_conduct_certificate',
         'port_pass',
-        'address',
+        'residence',
         'next_of_kin_name',
-        'next_of_kin_phone',
-        'referee_name',
-        'referee_phone'
+        'next_of_kin_phone'
+        
+        
       );
     if (search) query = query.andWhere('username', 'like', `%${search}%`);
     const drivers = await query.select('id', 'username');
