@@ -84,6 +84,14 @@ const fetchAlerts = async () => {
 useEffect(() => {
   fetchAlerts();
 }, []);
+// 🔁 Auto-refresh alerts every 60 seconds
+useEffect(() => {
+  const interval = setInterval(() => {
+    fetchAlerts();
+  }, 60000); // 60,000 ms = 1 minute
+
+  return () => clearInterval(interval); // cleanup when unmounted
+}, []);
 
 
   const handleRefresh = async () => {
@@ -589,37 +597,63 @@ const exportTrailerCompliancePDF = () => {
 //               Export Drivers XLSX
 //             </button>
 
-    const exportAlertsPDF = () => {
-    const doc = new jsPDF();
-    doc.text("System Alerts Report", 14, 16);
+ const exportAlertsPDF = async () => {
+    try {
+      // 1️⃣ Fetch alerts from backend
+      const response = await api.get('/api/alerts'); 
+      const alerts = response.data;
 
-    const alertRows = [];
+      if (!alerts || alerts.length === 0) {
+        alert('No alerts found to export.');
+        return;
+      }
 
-    driverAlerts.forEach((d) => {
-      alertRows.push(["Driver", d.username || d.name, "License/Medical expired"]);
-    });
+      // 2️⃣ Create PDF
+      const doc = new jsPDF();
 
-    truckAlerts.forEach((t) => {
-      alertRows.push(["Truck", t.plate_number, "Insurance/Inspection expired"]);
-    });
+      doc.setFontSize(16);
+      doc.text('System Alerts Report', 14, 20);
 
-    expiringSoonTrucks.forEach((t) => {
-      alertRows.push(["Truck", t.plate_number, `Insurance expiring in ${daysUntil(t.insuranceExpiry)} days`]);
-    });
+      // 3️⃣ Prepare table data
+      const tableColumn = [
+        'ID',
+        'Entity Type',
+        'Entity ID',
+        'Alert Type',
+        'Alert Date',
+        'Status',
+        'Message',
+        'Admin Email',
+        'Email Sent',
+      ];
 
-    if (alertRows.length === 0) {
-      doc.text("No alerts at this time. ✅", 14, 30);
-    } else {
-      doc.autoTable({
-        head: [["Type", "Name / Plate", "Details"]],
-        body: alertRows,
-        startY: 24,
+      const tableRows = alerts.map(alert => [
+        alert.alert_id,
+        alert.entity_type,
+        alert.entity_id,
+        alert.alert_type,
+        alert.alert_date,
+        alert.status,
+        alert.alert_message,
+        alert.admin_email || '-',
+        alert.email_sent ? 'Yes' : 'No',
+      ]);
+
+      // 4️⃣ Add table to PDF
+      autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 30,
+      theme: 'grid',
+      headStyles: { fillColor: [22, 160, 133] },
       });
+      // 5️⃣ Save PDF
+      doc.save('system_alerts.pdf');
+    } catch (error) {
+      console.error(error);
+      alert('Failed to export alerts.');
     }
-
-    doc.save("system_alerts.pdf");
   };
-
 
   // Render helpers
   const getNextStepLabel = (status) => {
@@ -668,6 +702,9 @@ const exportTrailerCompliancePDF = () => {
            </button>
             <button onClick={exportDriversRenewalPDF} style={secondaryButtonStyle}>
             Export Drivers PDF
+           </button>
+           <button onClick={exportAlertsPDF} style={secondaryButtonStyle} >
+            Export Alerts PDF
            </button>
            
           </div>

@@ -28,8 +28,8 @@ export default function Alerts() {
 
   const filteredAlerts = alerts.filter((a) => {
     if (filter === 'all') return true;
-    if (filter === 'upcoming') return a.status === 'pending';
-    if (filter === 'expired') return a.status === 'expired';
+    if (filter === 'upcoming') return a.computed_status === 'pending';
+    if (filter === 'expired') return a.computed_status === 'expired';
     return true;
   });
 
@@ -40,15 +40,10 @@ export default function Alerts() {
     if (!entity_type) return;
     const lowerType = entity_type.toLowerCase();
 
-    if (lowerType.includes('driver')) {
-      navigate(`/drivers?ref=${encodeURIComponent(ref)}`);
-    } else if (lowerType.includes('truck')) {
-      navigate(`/trucks?ref=${encodeURIComponent(ref)}`);
-    } else if (lowerType.includes('trailer')) {
-      navigate(`/trailers?ref=${encodeURIComponent(ref)}`);
-    } else {
-      alert(`Unknown entity type: ${entity_type}`);
-    }
+    if (lowerType.includes('driver')) navigate(`/drivers?ref=${encodeURIComponent(ref)}`);
+    else if (lowerType.includes('truck')) navigate(`/trucks?ref=${encodeURIComponent(ref)}`);
+    else if (lowerType.includes('trailer')) navigate(`/trailers?ref=${encodeURIComponent(ref)}`);
+    else alert(`Unknown entity type: ${entity_type}`);
   };
 
   const handleResendEmail = async (alertId) => {
@@ -64,13 +59,26 @@ export default function Alerts() {
     }
   };
 
-  // Pick icon based on alert type
   const getIconForType = (type = '') => {
     const lower = type.toLowerCase();
-    if (lower.includes('comesa') || lower.includes('insurance')) return <FileWarning className="w-5 h-5 text-yellow-600" />;
+    if (lower.includes('comesa') || lower.includes('insurance'))
+      return <FileWarning className="w-5 h-5 text-yellow-600" />;
     if (lower.includes('inspection')) return <Search className="w-5 h-5 text-blue-600" />;
     if (lower.includes('license')) return <IdCard className="w-5 h-5 text-green-600" />;
     return <AlertTriangle className="w-5 h-5 text-red-600" />;
+  };
+
+  const purgeAlerts = async () => {
+    if (!window.confirm('Are you sure you want to delete all alerts?')) return;
+
+    try {
+      const res = await api.delete('/alerts/purge');
+      alert(res.data.message || 'All alerts purged successfully.');
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to purge alerts.');
+    }
   };
 
   return (
@@ -80,25 +88,34 @@ export default function Alerts() {
         Compliance Alerts
       </h2>
 
-      {/* Filter Buttons */}
-      <div className="flex gap-3 mb-4">
-        {['all', 'upcoming', 'expired'].map((type) => (
-          <button
-            key={type}
-            onClick={() => setFilter(type)}
-            className={`px-4 py-2 rounded capitalize transition ${
-              filter === type
-                ? type === 'expired'
-                  ? 'bg-red-500 text-white'
-                  : type === 'upcoming'
-                  ? 'bg-yellow-500 text-white'
-                  : 'bg-blue-600 text-white'
-                : 'bg-gray-200 hover:bg-gray-300'
-            }`}
-          >
-            {type}
-          </button>
-        ))}
+      {/* Filter + Purge Buttons */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex gap-3">
+          {['all', 'upcoming', 'expired'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={`px-4 py-2 rounded capitalize transition ${
+                filter === type
+                  ? type === 'expired'
+                    ? 'bg-red-500 text-white'
+                    : type === 'upcoming'
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-blue-600 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={purgeAlerts}
+          className="px-4 py-2 rounded-lg bg-red-600 text-white shadow-md hover:bg-red-700 transition"
+        >
+          🧹 Purge Alerts
+        </button>
       </div>
 
       {/* Alerts Table */}
@@ -122,14 +139,16 @@ export default function Alerts() {
             </tr>
           ) : filteredAlerts.length > 0 ? (
             filteredAlerts.map((alert, idx) => (
-              <tr key={idx} className="border-b hover:bg-gray-50 transition" data-tooltip-id={`alert-${idx}`}>
-                {/* Type with icon */}
+              <tr
+                key={idx}
+                className="border-b hover:bg-gray-50 transition"
+                data-tooltip-id={`alert-${idx}`}
+              >
                 <td className="p-3 capitalize flex items-center gap-2">
                   {getIconForType(alert.alert_type)}
                   {alert.alert_type?.replace('_', ' ') || '—'}
                 </td>
 
-                {/* Reference clickable */}
                 <td
                   className="p-3 text-blue-600 cursor-pointer underline"
                   onClick={() => handleEntityClick(alert)}
@@ -137,12 +156,10 @@ export default function Alerts() {
                   {alert.reference_name || alert.reference || 'N/A'}
                 </td>
 
-                {/* Expiry */}
                 <td className="p-3">
                   {alert.alert_date ? new Date(alert.alert_date).toLocaleDateString() : '—'}
                 </td>
 
-                {/* Status */}
                 <td
                   className={`p-3 font-semibold ${
                     alert.status === 'expired'
@@ -155,7 +172,6 @@ export default function Alerts() {
                   {alert.status || '—'}
                 </td>
 
-                {/* Email status */}
                 <td className="p-3">
                   {alert.email_sent === 1 ? (
                     <span className="text-green-600 font-semibold">📧 Sent</span>
@@ -164,7 +180,6 @@ export default function Alerts() {
                   )}
                 </td>
 
-                {/* Actions */}
                 <td className="p-3 text-center">
                   <button
                     onClick={() => handleResendEmail(alert.alert_id)}
@@ -174,7 +189,6 @@ export default function Alerts() {
                   </button>
                 </td>
 
-                {/* Tooltip */}
                 <Tooltip
                   id={`alert-${idx}`}
                   place="top"

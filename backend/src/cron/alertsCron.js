@@ -1,117 +1,157 @@
-const db = require('../db');
-const nodemailer = require('nodemailer');
+const db = require("../db");
+const nodemailer = require("nodemailer");
+const cron = require("node-cron");
+require("dotenv").config();
 
-// Configure email transport (update this to your credentials)
+// === Email Transporter ===
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
-    user: 'admin@example.com', // change to your admin email
-    pass: 'your-app-password'  // Gmail App Password
-  }
+    user: process.env.ADMIN_EMAIL,
+    pass: process.env.ADMIN_EMAIL_PASS,
+  },
 });
 
-async function sendEmail(to, subject, message) {
+// === HTML Email Template ===
+function buildEmailTemplate({ title, entity, reference, expiryDate }) {
+  return `
+    <div style="font-family: Arial, sans-serif; background: #f6f8fa; padding: 20px;">
+      <div style="max-width: 600px; margin: auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); overflow: hidden;">
+        <div style="background: #0d6efd; color: #fff; padding: 15px 20px; font-size: 18px; font-weight: bold;">
+          🚨 ${title}
+        </div>
+        <div style="padding: 20px; color: #333;">
+          <p><b>Entity:</b> ${entity}</p>
+          <p><b>Reference:</b> ${reference}</p>
+          <p><b>Expiry Date:</b> <span style="color:#dc3545;">${expiryDate}</span></p>
+          <p><b>Status:</b> <span style="color:#ffc107;">PENDING</span></p>
+          <p style="margin-top: 20px;">Please take the necessary action to renew or update this compliance document.</p>
+          <a href="http://localhost:5173"
+            style="display:inline-block; margin-top:15px; background:#198754; color:#fff; padding:10px 18px; border-radius:5px; text-decoration:none;">
+            View in Transport Portal
+          </a>
+        </div>
+        <div style="background:#f1f1f1; padding:10px 20px; text-align:center; font-size:12px; color:#777;">
+          © ${new Date().getFullYear()} Transport Portal — Automated Compliance Alerts
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// === Send Email ===
+async function sendEmail(to, subject, html) {
   try {
     await transporter.sendMail({
-      from: '"Transport Portal Alerts" <admin@example.com>',
+      from: `"Transport Portal Alerts" <${process.env.ADMIN_EMAIL}>`,
       to,
       subject,
-      html: message
+      html,
     });
+    console.log(`📧 Email sent: ${subject} -> ${to}`);
   } catch (err) {
-    console.error('❌ Email send error:', err);
+    console.error("❌ Email send error:", err.message);
   }
 }
 
+// === Alert Handler ===
+async function handleAlert(entityType, entityId, reference, expiryDate, label, alertType, adminEmail) {
+  const exists = await db("alerts").where({ entity_type: entityType, entity_id: entityId, alert_type: alertType }).first();
+  if (exists) return;
+
+  await db("alerts").insert({
+    entity_type: entityType,
+    entity_id: entityId,
+    alert_type: alertType,
+    alert_date: expiryDate,
+    status: "pending",
+    admin_email: adminEmail,
+    email_sent: 0,
+  });
+
+  const html = buildEmailTemplate({
+    title: `${label} Alert – ${reference}`,
+    entity: entityType.charAt(0).toUpperCase() + entityType.slice(1),
+    reference,
+    expiryDate,
+  });
+
+  await sendEmail(adminEmail, `🚨 ${label} – ${reference}`, html);
+
+  await db("alerts")
+    .where({ entity_type: entityType, entity_id: entityId, alert_type: alertType })
+    .update({ email_sent: 1, notified_at: new Date().toISOString() });
+}
+
+// === Expiry Config ===
+const expiryMapping = {
+  driver: [{ column: "license_expiry_date", alertType: "license_expiry", label: "License Expiry" }],
+  truck: [
+    { column: "insurance_expiry_date", alertType: "insurance_expiry", label: "Insurance Expiry" },
+    { column: "inspection_expiry_date", alertType: "inspection_expiry", label: "Inspection Expiry" },
+    { column: "comesa_expiry_date", alertType: "comesa_expiry", label: "COMESA Expiry" },
+  ],
+  trailer: [
+    { column: "insurance_expiry_date", alertType: "insurance_expiry", label: "Insurance Expiry" },
+    { column: "inspection_expiry_date", alertType: "inspection_expiry", label: "Inspection Expiry" },
+    { column: "comesa_expiry_date", alertType: "comesa_expiry", label: "COMESA Expiry" },
+  ],
+};
+
+// === Entity Config ===
+const entityConfigs = [
+  { table: "users", idKey: "id", nameKey: "full_name", type: "driver", where: { role: "driver" } },
+  { table: "trucks", idKey: "truck_id", nameKey: "plate_number", type: "truck" },
+  { table: "trailers", idKey: "trailer_id", nameKey: "plate_number", type: "trailer" },
+];
+
+// === Main Compliance Checker ===
 async function checkCompliance() {
+  console.log("🚀 Starting compliance check...");
+
   const today = new Date();
   const upcomingLimit = new Date();
   upcomingLimit.setDate(today.getDate() + 30);
 
-  const adminEmail = 'admin@example.com'; // update this
+  const adminEmail = process.env.ALERT_RECIPIENT || process.env.ADMIN_EMAIL;
 
-  // Check driver licenses
-  const drivers = await db('users')
-    .where('role', 'driver')
-    .select('id', 'username', 'license_expiry');
+  // Auto-mark expired alerts
+  await db("alerts")
+    .where("alert_date", "<", today)
+    .andWhere("status", "pending")
+    .update({ status: "expired" });
 
-  for (const d of drivers) {
-    if (!d.license_expiry) continue;
-    const expiry = new Date(d.license_expiry);
+  let totalAlerts = 0;
 
-    if (expiry <= upcomingLimit) {
-      await db('compliance_alerts').insert({
-        type: 'license expiry',
-        reference: d.username,
-        expiry_date: d.license_expiry,
-        status: 'pending',
-        email: adminEmail
-      });
+  for (const { table, idKey, nameKey, type, where } of entityConfigs) {
+    const rows = where ? await db(table).where(where) : await db(table);
+    const mappings = expiryMapping[type];
 
-      await sendEmail(
-        adminEmail,
-        `Driver License Expiry Alert: ${d.username}`,
-        `<p>The license for driver <b>${d.username}</b> expires on <b>${d.license_expiry}</b>.</p>`
-      );
-    }
-  }
+    for (const row of rows) {
+      for (const { column, alertType, label } of mappings) {
+        const expiryDate = row[column];
+        if (!expiryDate) continue;
 
-  // Check trucks (insurance + inspection)
-  const trucks = await db('trucks').select('id', 'plate_number', 'insurance_expiry', 'inspection_expiry', 'comesa_expiry');
-  for (const t of trucks) {
-    for (const [type, date] of [
-      ['insurance expiry', t.insurance_expiry],
-      ['inspection expiry', t.inspection_expiry],
-      ['comesa expiry', t.comesa_expiry]
-    ]) {
-      if (!date) continue;
-      const expiry = new Date(date);
-      if (expiry <= upcomingLimit) {
-        await db('compliance_alerts').insert({
-          type,
-          reference: t.plate_number,
-          expiry_date: date,
-          status: 'pending',
-          email: adminEmail
-        });
-
-        await sendEmail(
-          adminEmail,
-          `Truck ${t.plate_number} ${type}`,
-          `<p>The <b>${type}</b> for truck <b>${t.plate_number}</b> expires on <b>${date}</b>.</p>`
-        );
+        if (new Date(expiryDate) <= upcomingLimit) {
+          await handleAlert(type, row[idKey], row[nameKey], expiryDate, label, alertType, adminEmail);
+          totalAlerts++;
+        }
       }
     }
   }
 
-  // Check trailers (insurance + inspection)
-  const trailers = await db('trailers').select('id', 'trailer_number', 'insurance_expiry', 'inspection_expiry');
-  for (const tr of trailers) {
-    for (const [type, date] of [
-      ['insurance expiry', tr.insurance_expiry],
-      ['inspection expiry', tr.inspection_expiry]
-    ]) {
-      if (!date) continue;
-      const expiry = new Date(date);
-      if (expiry <= upcomingLimit) {
-        await db('compliance_alerts').insert({
-          type,
-          reference: tr.trailer_number,
-          expiry_date: date,
-          status: 'pending',
-          email: adminEmail
-        });
+  console.log(`✅ Compliance check complete — ${totalAlerts} alerts processed.`);
+}
 
-        await sendEmail(
-          adminEmail,
-          `Trailer ${tr.trailer_number} ${type}`,
-          `<p>The <b>${type}</b> for trailer <b>${tr.trailer_number}</b> expires on <b>${date}</b>.</p>`
-        );
-      }
-    }
-  }
+// === Schedule Daily Run ===
+cron.schedule("0 8 * * *", async () => {
+  console.log("⏰ Running daily compliance check...");
+  await checkCompliance();
+});
 
-  console.log('✅ Compliance check complete.');
+// === Run Manually if Called Directly ===
+if (require.main === module) {
+  checkCompliance();
 }
 
 module.exports = checkCompliance;
