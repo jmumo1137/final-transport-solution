@@ -622,7 +622,7 @@ const exportTrailerCompliancePDF = () => {
         'Alert Type',
         'Alert Date',
         'Status',
-        'Message',
+        
         'Admin Email',
         'Email Sent',
       ];
@@ -634,7 +634,7 @@ const exportTrailerCompliancePDF = () => {
         alert.alert_type,
         alert.alert_date,
         alert.status,
-        alert.alert_message,
+        
         alert.admin_email || '-',
         alert.email_sent ? 'Yes' : 'No',
       ]);

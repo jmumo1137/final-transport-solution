@@ -40,15 +40,19 @@ export default function Alerts() {
     if (!entity_type) return;
     const lowerType = entity_type.toLowerCase();
 
-    if (lowerType.includes('driver')) navigate(`/drivers?ref=${encodeURIComponent(ref)}`);
-    else if (lowerType.includes('truck')) navigate(`/trucks?ref=${encodeURIComponent(ref)}`);
-    else if (lowerType.includes('trailer')) navigate(`/trailers?ref=${encodeURIComponent(ref)}`);
-    else alert(`Unknown entity type: ${entity_type}`);
+    if (lowerType.includes('driver')) {
+      navigate(`/drivers?ref=${encodeURIComponent(ref)}`);
+    } else if (lowerType.includes('truck')) {
+      navigate(`/trucks?ref=${encodeURIComponent(ref)}`);
+    } else if (lowerType.includes('trailer')) {
+      navigate(`/trailers?ref=${encodeURIComponent(ref)}`);
+    } else {
+      alert(`Unknown entity type: ${entity_type}`);
+    }
   };
 
   const handleResendEmail = async (alertId) => {
     if (!window.confirm('Resend alert email to admin?')) return;
-
     try {
       await api.post(`/api/alerts/${alertId}/resend-email`);
       alert('✅ Email resent successfully!');
@@ -61,23 +65,21 @@ export default function Alerts() {
 
   const getIconForType = (type = '') => {
     const lower = type.toLowerCase();
-    if (lower.includes('comesa') || lower.includes('insurance'))
-      return <FileWarning className="w-5 h-5 text-yellow-600" />;
+    if (lower.includes('comesa') || lower.includes('insurance')) return <FileWarning className="w-5 h-5 text-yellow-600" />;
     if (lower.includes('inspection')) return <Search className="w-5 h-5 text-blue-600" />;
     if (lower.includes('license')) return <IdCard className="w-5 h-5 text-green-600" />;
     return <AlertTriangle className="w-5 h-5 text-red-600" />;
   };
 
   const purgeAlerts = async () => {
-    if (!window.confirm('Are you sure you want to delete all alerts?')) return;
-
+    if (!window.confirm("Are you sure you want to delete all alerts?")) return;
     try {
-      const res = await api.delete('/alerts/purge');
-      alert(res.data.message || 'All alerts purged successfully.');
+      const res = await api.delete("/api/alerts/purge");
+      alert(res.data.message || "All alerts purged successfully.");
       window.location.reload();
     } catch (err) {
       console.error(err);
-      alert('Failed to purge alerts.');
+      alert("Failed to purge alerts.");
     }
   };
 
@@ -88,7 +90,7 @@ export default function Alerts() {
         Compliance Alerts
       </h2>
 
-      {/* Filter + Purge Buttons */}
+      {/* Filters and Purge */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex gap-3">
           {['all', 'upcoming', 'expired'].map((type) => (
@@ -109,7 +111,6 @@ export default function Alerts() {
             </button>
           ))}
         </div>
-
         <button
           onClick={purgeAlerts}
           className="px-4 py-2 rounded-lg bg-red-600 text-white shadow-md hover:bg-red-700 transition"
@@ -139,47 +140,31 @@ export default function Alerts() {
             </tr>
           ) : filteredAlerts.length > 0 ? (
             filteredAlerts.map((alert, idx) => (
-              <tr
-                key={idx}
-                className="border-b hover:bg-gray-50 transition"
-                data-tooltip-id={`alert-${idx}`}
-              >
-                <td className="p-3 capitalize flex items-center gap-2">
-                  {getIconForType(alert.alert_type)}
-                  {alert.alert_type?.replace('_', ' ') || '—'}
-                </td>
-
+              <tr key={idx} className="border-b hover:bg-gray-50 transition">
+                <td className="p-3 capitalize flex items-center gap-2">{getIconForType(alert.alert_type)}{alert.alert_type?.replace('_', ' ') || '—'}</td>
                 <td
                   className="p-3 text-blue-600 cursor-pointer underline"
                   onClick={() => handleEntityClick(alert)}
+                  data-tooltip-id={`alert-${idx}`}
+                  data-tooltip-content={`
+Entity: ${alert.entity_type}
+Ref: ${alert.reference_name || alert.reference || alert.entity_id}
+Expiry: ${alert.alert_date}
+Status: ${alert.status}
+Email: ${alert.email_sent === 1 ? `✅ Sent (${alert.notified_at || 'N/A'})` : '⌛ Pending'}
+                  `}
                 >
                   {alert.reference_name || alert.reference || 'N/A'}
                 </td>
-
-                <td className="p-3">
-                  {alert.alert_date ? new Date(alert.alert_date).toLocaleDateString() : '—'}
-                </td>
-
-                <td
-                  className={`p-3 font-semibold ${
-                    alert.status === 'expired'
-                      ? 'text-red-500'
-                      : alert.status === 'pending'
-                      ? 'text-yellow-600'
-                      : 'text-green-600'
-                  }`}
-                >
-                  {alert.status || '—'}
-                </td>
-
-                <td className="p-3">
-                  {alert.email_sent === 1 ? (
-                    <span className="text-green-600 font-semibold">📧 Sent</span>
-                  ) : (
-                    <span className="text-gray-500">⌛ Pending</span>
-                  )}
-                </td>
-
+                <td className="p-3">{alert.alert_date ? new Date(alert.alert_date).toLocaleDateString() : '—'}</td>
+                <td className={`p-3 font-semibold ${
+                  alert.status === 'expired'
+                    ? 'text-red-500'
+                    : alert.status === 'pending'
+                    ? 'text-yellow-600'
+                    : 'text-green-600'
+                }`}>{alert.status || '—'}</td>
+                <td className="p-3">{alert.email_sent === 1 ? <span className="text-green-600 font-semibold">📧 Sent</span> : <span className="text-gray-500">⌛ Pending</span>}</td>
                 <td className="p-3 text-center">
                   <button
                     onClick={() => handleResendEmail(alert.alert_id)}
@@ -188,29 +173,6 @@ export default function Alerts() {
                     Resend Email
                   </button>
                 </td>
-
-                <Tooltip
-                  id={`alert-${idx}`}
-                  place="top"
-                  style={{ backgroundColor: '#1f2937', color: '#fff' }}
-                >
-                  <div>
-                    <strong>{alert.alert_type?.replace('_', ' ').toUpperCase()}</strong>
-                    <br />
-                    Entity: {alert.entity_type}
-                    <br />
-                    Ref: {alert.reference_name || alert.reference || alert.entity_id}
-                    <br />
-                    Expiry: {alert.alert_date}
-                    <br />
-                    Status: {alert.status}
-                    <br />
-                    Email:{' '}
-                    {alert.email_sent === 1
-                      ? `✅ Sent (${alert.notified_at || 'N/A'})`
-                      : '⌛ Pending'}
-                  </div>
-                </Tooltip>
               </tr>
             ))
           ) : (
@@ -222,6 +184,12 @@ export default function Alerts() {
           )}
         </tbody>
       </table>
+
+      {/* One Tooltip instance */}
+      <Tooltip id="alert-tooltip" />
+      {filteredAlerts.map((_, idx) => (
+        <Tooltip key={idx} id={`alert-${idx}`} place="top" />
+      ))}
     </div>
   );
 }
