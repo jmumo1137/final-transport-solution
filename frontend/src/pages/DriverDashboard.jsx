@@ -490,7 +490,7 @@ const fetchDriverInfo = async () => {
             const canLogMileage = status === "enroute";
             const canUploadPOD = status === "enroute";
             const canLogCash = status === "enroute";
-            const canMarkDelivered = status === "enroute" && pod_file;
+            const canMarkDelivered = status === "pod_uploaded";
 
             const qtyColor = quantity_delivered < quantity_loaded ? "red" : "black";
 

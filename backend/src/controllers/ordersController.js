@@ -235,23 +235,21 @@ async function updateOrderStatus(req, res, newStatus, timeField = null) {
       assigned: 'loaded',
       loaded: 'enroute',
       enroute: 'delivered',
+      pod_uploaded: 'delivered',
       delivered: 'awaiting_payment',
       awaiting_payment: 'paid',
       paid: 'closed',
     };
-    if (order.status === newStatus && timeField) {
-  console.log(`🔁 Reconfirming ${newStatus} → updating ${timeField}`);
-  const deliveredAt = req.body.delivered_at || new Date().toISOString();
-  const updateData = { [timeField]: deliveredAt, updated_at: new Date().toISOString() };
-  await db('orders').where({ id }).update(updateData);
-  const updatedOrder = await db('orders').where({ id }).first();
-  console.log(`✅ ${timeField} set to ${deliveredAt}`);
-  return res.json(updatedOrder);
-}
 
+    if (order.status === newStatus && timeField) {
+      const deliveredAt = req.body.delivered_at || new Date().toISOString();
+      const updateData = { [timeField]: deliveredAt, updated_at: new Date().toISOString() };
+      await db('orders').where({ id }).update(updateData);
+      const updatedOrder = await db('orders').where({ id }).first();
+      return res.json(updatedOrder);
+    }
 
     if (validFlow[order.status] !== newStatus) {
-      console.log(`⚠️ Invalid transition: ${order.status} → ${newStatus}`);
       return res
         .status(400)
         .json({ message: `Invalid status transition from ${order.status} → ${newStatus}` });
@@ -259,8 +257,11 @@ async function updateOrderStatus(req, res, newStatus, timeField = null) {
 
     if (newStatus === 'delivered') {
       console.log('📦 Checking POD + fuel/mileage before marking delivered...');
-      const pod = await db('documents').where({ order_id: id, type: 'POD' }).first();
-      if (!pod) return res.status(400).json({ message: 'POD must be uploaded before marking as delivered.' });
+      const pod = await db('documents')
+        .where({ order_id: id, type: 'pod' }) 
+        .first();
+      if (!pod)
+        return res.status(400).json({ message: 'POD must be uploaded before marking as delivered.' });
 
       const [fuelCount] = await db('fuel').where({ order_id: id }).count({ c: '*' });
       const [mileageCount] = await db('mileage').where({ order_id: id }).count({ c: '*' });
@@ -272,17 +273,10 @@ async function updateOrderStatus(req, res, newStatus, timeField = null) {
     }
 
     const updateData = { status: newStatus, updated_at: new Date().toISOString() };
-    if (timeField) {
-      updateData[timeField] = new Date().toISOString();
-      console.log(`🕒 Setting ${timeField}:`, updateData[timeField]);
-    }
-
-    console.log('🧾 Final update payload →', updateData);
+    if (timeField) updateData[timeField] = new Date().toISOString();
 
     await db('orders').where({ id }).update(updateData);
-
     const updatedOrder = await db('orders').where({ id }).first();
-    console.log('✅ Updated order in DB →', updatedOrder);
 
     res.json(updatedOrder);
   } catch (error) {
@@ -290,6 +284,7 @@ async function updateOrderStatus(req, res, newStatus, timeField = null) {
     res.status(500).json({ message: 'Internal server error' });
   }
 }
+
 
 // ---------- WRAPPERS ----------
 const markEnroute = (req, res) => updateOrderStatus(req, res, 'enroute');

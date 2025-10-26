@@ -60,6 +60,10 @@ router.post('/:orderId', upload.single('file'), async (req, res) => {
         .where({ id: req.params.orderId })
         .update({ quantity_delivered: Number(quantity_delivered) });
     }
+        // 🟢 Update order status to indicate POD uploaded / ready for delivery mark
+    await db('orders')
+      .where({ id: req.params.orderId })
+      .update({ status: 'pod_uploaded' }); 
 
     res.json({ ok: true });
   } catch (err) {

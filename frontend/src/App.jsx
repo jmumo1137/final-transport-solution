@@ -30,7 +30,7 @@ function DashboardWrapper() {
     case 'driver':
       return <DriverDashboard />;
     case 'consignee': // customer role
-      return <OrdersList />; // Or create a dedicated CustomerDashboard
+      return <CustomerDashboard />; // Or create a dedicated CustomerDashboard
     case 'dispatcher':
     case 'admin':
     case 'operations':

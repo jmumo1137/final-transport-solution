@@ -32,7 +32,7 @@ router.post('/:id', async (req, res) => {
     // Determine lifecycle progression
     let newStatus = order.status;
     if (order.status === 'loaded') newStatus = 'enroute';
-    else if (order.status === 'enroute') newStatus = 'delivered';
+    
 
     // Prepare order update object
     const updateData = {
