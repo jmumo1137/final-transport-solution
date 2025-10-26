@@ -10,8 +10,10 @@ export default function DriverDashboard() {
   const [files, setFiles] = useState({});
   const [licenseNumber, setLicenseNumber] = useState("");
   const [licenseExpiry, setLicenseExpiry] = useState("");
-  const [policyAccepted, setPolicyAccepted] = useState(false);
-  const [safetyGuidelinesAccepted, setSafetyGuidelinesAccepted] = useState(false);
+  const [safetyPolicyAccepted, setSafetyPolicyAccepted] = useState(false);
+  const [driverPolicyAccepted, setDriverPolicyAccepted] = useState(false);
+  const [companyPolicyAccepted, setCompanyPolicyAccepted] = useState(false);
+
   const [activeTab, setActiveTab] = useState("documents"); // internal tabs
 
   const role = useSelector(selectUserRole);
@@ -21,18 +23,21 @@ export default function DriverDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 10;
 
-  // ---------------------- Fetch Driver Info ----------------------
-  const fetchDriverInfo = async () => {
-    try {
-      const res = await api.get(`/api/drivers/${userId}`);
-      setDriverInfo(res.data);
-      setLicenseNumber(res.data.license_number || "");
-      setPolicyAccepted(res.data.policy_accepted || false);
-      setSafetyGuidelinesAccepted(res.data.safety_guidelines_accepted || false);
-    } catch (err) {
-      console.error("fetchDriverInfo error:", err.response?.data || err.message);
-    }
-  };
+// ---------------------- Fetch Driver Info ----------------------
+const fetchDriverInfo = async () => {
+  try {
+    const res = await api.get(`/api/drivers/${userId}`);
+    const u = res.data; 
+    setDriverInfo(u);
+    setLicenseNumber(u.license_number || "");
+    setSafetyPolicyAccepted(u.safety_policy_accepted || false);
+    setDriverPolicyAccepted(u.driver_policy_accepted || false);
+    setCompanyPolicyAccepted(u.company_policy_accepted || false);
+  } catch (err) {
+    console.error("fetchDriverInfo error:", err.response?.data || err.message);
+  }
+};
+
 
   // ---------------------- Fetch Assigned Orders ----------------------
   const fetchAssignedOrders = async () => {
@@ -127,7 +132,7 @@ export default function DriverDashboard() {
 
   // ---------------------- Order Actions ----------------------
   const handleLoadOrder = async (orderId) => {
-    if (!policyAccepted || !safetyGuidelinesAccepted) return alert("You must accept the policies before loading any orders.");
+    if (!safetyPolicyAccepted || !driverPolicyAccepted || !companyPolicyAccepted) return alert("You must accept the policies before loading any orders.");
     try {
       const quantity = prompt("Enter quantity loaded (in tons or liters):");
       if (!quantity || isNaN(quantity) || quantity <= 0) return alert("Please enter a valid quantity greater than zero.");
@@ -141,7 +146,7 @@ export default function DriverDashboard() {
   };
 
   const handleStartJourney = async (orderId) => {
-    if (!policyAccepted || !safetyGuidelinesAccepted) return alert("You must accept the policies before starting the journey.");
+    if (!safetyPolicyAccepted || !driverPolicyAccepted || !companyPolicyAccepted) return alert("You must accept the policies before starting the journey.");
     try {
       if (!window.confirm("Start the journey for this order?")) return;
       const res = await api.post(`/api/orders/${orderId}/enroute`);
@@ -323,31 +328,58 @@ export default function DriverDashboard() {
           console.error(err);
           alert("Failed to update Next of Kin info");
         }
-      }} style={{ marginTop: 15, backgroundColor: "#ffc107", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}>Save Next of Kin Info</button>
+      }} style={{ marginTop: 15, backgroundColor: "#ffc107", color: "#green", border: "none", padding: "5px 10px", borderRadius: 3 }}>Save Next of Kin Info</button>
     </div>
   );
 
-  const PolicyTab = () => (
-    <div>
-      <h3>Policy Acceptance</h3>
-      <div>
-        <label>
-          <input type="checkbox" checked={policyAccepted} onChange={(e) => setPolicyAccepted(e.target.checked)} />
-          I accept the company policies
-        </label>
-      </div>
-      <div style={{ marginTop: 10 }}>
-        <label>
-          <input type="checkbox" checked={safetyGuidelinesAccepted} onChange={(e) => setSafetyGuidelinesAccepted(e.target.checked)} />
-          I have read and agree to the safety guidelines
-        </label>
-      </div>
-      <button onClick={async () => {
+ const PolicyTab = () => (
+  <div>
+    <h3 className="text-lg font-semibold mb-2">Policy Acceptance</h3>
+
+    {/* Company Policy */}
+    <div className="mb-3">
+      <label className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          checked={companyPolicyAccepted}
+          onChange={(e) => setCompanyPolicyAccepted(e.target.checked)}
+        />
+        <span>I accept the company policies</span>
+      </label>
+    </div>
+
+    {/* Safety Policy */}
+    <div className="mb-3">
+      <label className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          checked={safetyPolicyAccepted}
+          onChange={(e) => setSafetyPolicyAccepted(e.target.checked)}
+        />
+        <span>I have read and agree to the safety guidelines</span>
+      </label>
+    </div>
+
+    {/* Driver Policy */}
+    <div className="mb-3">
+      <label className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          checked={driverPolicyAccepted}
+          onChange={(e) => setDriverPolicyAccepted(e.target.checked)}
+        />
+        <span>I agree to follow driver operational policies</span>
+      </label>
+    </div>
+
+    {/* Save Button */}
+    <button
+      onClick={async () => {
         try {
           const payload = {
-            safety_policy_accepted: policyAccepted,
-            driver_policy_accepted: safetyGuidelinesAccepted,
-            company_policy_accepted: true,
+            safety_policy_accepted: safetyPolicyAccepted,
+            driver_policy_accepted: driverPolicyAccepted,
+            company_policy_accepted: companyPolicyAccepted,
           };
           const res = await api.put(`/api/drivers/${userId}/policies`, payload);
           alert("Policy acceptance updated successfully!");
@@ -356,9 +388,25 @@ export default function DriverDashboard() {
           console.error(err);
           alert("Failed to update policy acceptance");
         }
-      }} style={{ marginTop: 15, backgroundColor: "#6f42c1", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}>Save Policy Acceptance</button>
-    </div>
-  );
+      }}style={{
+    marginTop: 15,
+    backgroundColor: "#ffc107",
+    color: "#green",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: 6,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+  }}
+  onMouseOver={(e) => (e.target.style.backgroundColor = "#e0a800")}
+  onMouseOut={(e) => (e.target.style.backgroundColor = "#ffc107")}
+    >
+      Save Policy Acceptance
+    </button>
+  </div>
+);
+
 
   const renderTabsHeader = () => (
     <div style={{ display: "flex", gap: 20, borderBottom: "1px solid #ccc", marginBottom: 20 }}>

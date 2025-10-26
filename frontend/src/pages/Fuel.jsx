@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import api from "../api/api";
-import "/src/styles.css"; // optional for styling
+import "/src/styles.css"; 
+import { useNavigate } from "react-router-dom";
 
 export default function Fuel() {
   const { id } = useParams();
@@ -12,6 +13,7 @@ export default function Fuel() {
   const [cashSpent, setCashSpent] = useState("");
   const [loading, setLoading] = useState(false);
   const [hoverPreview, setHoverPreview] = useState(null);
+  const navigate = useNavigate();
 
   // Fetch previous fuel records
   const fetchFuelRecords = async () => {
@@ -65,7 +67,20 @@ export default function Fuel() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Fuel — Order {id}</h1>
-      <button onClick={() => navigate(-1)}>Back</button>
+      <button onClick={() => navigate(-1)}style={{
+    marginTop: 15,
+    marginBottom: 15,
+    backgroundColor: "blue",
+    color: "#fff",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: 6,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+  }}
+  onMouseOver={(e) => (e.target.style.backgroundColor = "#5a6268")}
+  onMouseOut={(e) => (e.target.style.backgroundColor = "blue")}> Back </button>
 
       {/* Upload Form */}
       <div style={{ marginBottom: 20 }}>
@@ -96,7 +111,7 @@ export default function Fuel() {
           style={{ marginTop: 5 }}
         />
         <br />
-        <button onClick={handleUpload} disabled={loading} style={{ marginTop: 10 }}>
+        <button onClick={handleUpload} disabled={loading} style={{ marginTop: 10, backgroundColor: "green", borderRadius: 20, padding: "8px 16px",color: "#fff"}}>
           {loading ? "Uploading..." : "Upload Fuel Record"}
         </button>
       </div>

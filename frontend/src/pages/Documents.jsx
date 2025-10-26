@@ -72,7 +72,19 @@ export default function Documents() {
   return (
     <div style={{ padding: 20, position: 'relative' }}>
       <h1>Upload POD - Order {id}</h1>
-      <button onClick={() => navigate(-1)}>Back</button>
+      <button onClick={() => navigate(-1)}style={{
+    marginTop: 15,
+    backgroundColor: "blue",
+    color: "#fff",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: 6,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+  }}
+  onMouseOver={(e) => (e.target.style.backgroundColor = "#5a6268")}
+  onMouseOut={(e) => (e.target.style.backgroundColor = "blue")}>Back</button>
 
       {/* Upload Form */}
       <div style={{ marginTop: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -88,7 +100,8 @@ export default function Documents() {
           onChange={(e) => setQuantityDelivered(e.target.value)}
           style={{ padding: 5, width: 150 }}
         />
-        <button onClick={handleUpload} disabled={loading}>
+        <button onClick={handleUpload} disabled={loading}  style={{ marginTop: 10, backgroundColor: "green", borderRadius: 20, padding: "8px 16px",color: "#fff"}}
+ >
           {loading ? 'Uploading...' : 'Upload POD'}
         </button>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/api';
 import { useParams } from 'react-router-dom';
+import { useNavigate } from "react-router-dom";
 
 export default function Mileage() {
   const { id } = useParams();
@@ -8,6 +9,7 @@ export default function Mileage() {
   const [endOdometer, setEndOdometer] = useState('');
   const [records, setRecords] = useState([]);
   const [order, setOrder] = useState(null);
+  const navigate = useNavigate();
 
   const fetchOrder = async () => {
     try {
@@ -61,6 +63,20 @@ export default function Mileage() {
       <h2 className="text-xl font-semibold mb-2">
         Mileage — Order #{id}
       </h2>
+      <button onClick={() => navigate(-1)}style={{
+    marginTop: 15,
+    marginBottom: 15,
+    backgroundColor: "blue",
+    color: "#fff",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: 6,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+  }}
+  onMouseOver={(e) => (e.target.style.backgroundColor = "#5a6268")}
+  onMouseOut={(e) => (e.target.style.backgroundColor = "blue")}>Back</button>
 
       <div className="bg-gray-100 p-4 rounded-md mb-4">
         <div className="mb-3">
@@ -75,8 +91,8 @@ export default function Mileage() {
           />
         </div>
 
-        <div className="mb-3">
-          <label className="block font-medium">End Odometer</label>
+        <div style={{marginTop: 10} }>
+          <label >End Odometer</label>
           <input
             type="number"
             className="w-full border rounded p-2"
@@ -87,7 +103,7 @@ export default function Mileage() {
 
         <button
           onClick={handleSubmit}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          style={{ marginTop: 10, backgroundColor: "green", borderRadius: 20, padding: "8px 16px",color: "#fff"}}
         >
           Save Mileage
         </button>
