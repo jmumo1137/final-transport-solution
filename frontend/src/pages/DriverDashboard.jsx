@@ -17,6 +17,9 @@ export default function DriverDashboard() {
   const role = useSelector(selectUserRole);
   const userId = useSelector(selectUserId);
   const navigate = useNavigate();
+  const [orders, setOrders] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ordersPerPage = 10;
 
   // ---------------------- Fetch Driver Info ----------------------
   const fetchDriverInfo = async () => {
@@ -174,7 +177,18 @@ export default function DriverDashboard() {
       alert(err.response?.data?.message || "Failed to mark as delivered.");
     }
   };
+ const totalPages = Math.ceil(assignedOrders.length / ordersPerPage);
+ const indexOfLast = currentPage * ordersPerPage;
+ const indexOfFirst = indexOfLast - ordersPerPage;
+ const currentOrders = assignedOrders.slice(indexOfFirst, indexOfLast);
 
+
+  const nextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+  const prevPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
   // ---------------------- Internal Tabs ----------------------
   const DocumentsTab = () => (
     <div>
@@ -414,7 +428,7 @@ export default function DriverDashboard() {
           </tr>
         </thead>
         <tbody>
-          {assignedOrders.map(order => {
+          {currentOrders.map(order => {
             const {
               id, customer_name, pickup, destination, status,
               quantity_loaded, quantity_delivered, pod_file, cash_spent,
@@ -478,6 +492,14 @@ export default function DriverDashboard() {
           })}
         </tbody>
       </table>
+      <div style={{ marginTop: 10, textAlign: "center" }}>
+  <button onClick={prevPage} disabled={currentPage === 1}>Previous</button>
+  <span style={{ margin: "0 10px" }}>
+    Page {currentPage} of {totalPages || 1}
+  </span>
+  <button onClick={nextPage} disabled={currentPage === totalPages}>Next</button>
+</div>
+
     </div>
   );
 };
