@@ -597,63 +597,72 @@ const exportTrailerCompliancePDF = () => {
 //               Export Drivers XLSX
 //             </button>
 
- const exportAlertsPDF = async () => {
-    try {
-      // 1️⃣ Fetch alerts from backend
-      const response = await api.get('/api/alerts'); 
-      const alerts = response.data;
+const exportAlertsPDF = async () => {
+  try {
+    // 1️⃣ Fetch alerts
+    const response = await api.get("/api/alerts");
+    const alerts = response.data;
 
-      if (!alerts || alerts.length === 0) {
-        alert('No alerts found to export.');
-        return;
-      }
+    if (!alerts || alerts.length === 0) {
+      alert("No alerts found to export.");
+      return;
+    }
 
-      // 2️⃣ Create PDF
-      const doc = new jsPDF();
+    // 2️⃣ Create PDF
+    const doc = new jsPDF();
 
-      doc.setFontSize(16);
-      doc.text('System Alerts Report', 14, 20);
+    doc.setFontSize(16);
+    doc.text("System Alerts Report", 14, 20);
 
-      // 3️⃣ Prepare table data
-      const tableColumn = [
-        'ID',
-        'Entity Type',
-        'Entity ID',
-        'Alert Type',
-        'Alert Date',
-        'Status',
-        
-        'Admin Email',
-        'Email Sent',
-      ];
+    // 3️⃣ Table columns
+    const tableColumn = [
+      "ID",
+      "Entity Type",
+      "Entity ID",
+      "Alert Type",
+      "Alert Date",
+      "Status",
+      "Admin Email",
+      "Email Sent",
+    ];
 
-      const tableRows = alerts.map(alert => [
-        alert.alert_id,
-        alert.entity_type,
-        alert.entity_id,
-        alert.alert_type,
-        alert.alert_date,
-        alert.status,
-        
-        alert.admin_email || '-',
-        alert.email_sent ? 'Yes' : 'No',
-      ]);
+    // 4️⃣ Table rows
+    const tableRows = alerts.map((alert) => [
+      alert.alert_id,
+      alert.entity_type,
+      alert.entity_id,
+      alert.alert_type,
+      alert.alert_date,
+      alert.status,
+      alert.admin_email || "-",
+      alert.email_sent ? "Yes" : "No",
+    ]);
 
-      // 4️⃣ Add table to PDF
-      autoTable(doc, {
+    // 5️⃣ Generate table
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 30,
-      theme: 'grid',
+      theme: "grid",
       headStyles: { fillColor: [22, 160, 133] },
-      });
-      // 5️⃣ Save PDF
-      doc.save('system_alerts.pdf');
-    } catch (error) {
-      console.error(error);
-      alert('Failed to export alerts.');
-    }
-  };
+      styles: {
+        fontSize: 10,
+        cellPadding: 2,
+        overflow: "linebreak",
+      },
+      columnStyles: {
+        3: { cellWidth: 35 }, // widen alert type column
+        6: { cellWidth: 35 }, // widen admin email column
+      },
+    });
+
+    // 6️⃣ Save PDF
+    doc.save("system_alerts.pdf");
+  } catch (error) {
+    console.error(error);
+    alert("Failed to export alerts.");
+  }
+};
 
   // Render helpers
   const getNextStepLabel = (status) => {
