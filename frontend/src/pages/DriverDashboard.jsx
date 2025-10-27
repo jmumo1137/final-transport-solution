@@ -195,7 +195,60 @@ const fetchDriverInfo = async () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
   // ---------------------- Internal Tabs ----------------------
-  const DocumentsTab = () => (
+const DocumentsTab = ({
+  driverInfo,
+  files,
+  setFiles,
+  handleUpload,
+  handleLicenseUpdate,
+  handleLicenseExpiryUpdate
+}) => {
+  if (!driverInfo) return <p>Loading driver info...</p>;
+
+  // Local state for smooth typing
+  const [localLicenseNumber, setLocalLicenseNumber] = useState(driverInfo.license_number || "");
+  const [localLicenseExpiry, setLocalLicenseExpiry] = useState(driverInfo.license_expiry_date || "");
+
+  // Keep local state in sync if driverInfo updates
+  useEffect(() => {
+    setLocalLicenseNumber(driverInfo.license_number || "");
+    setLocalLicenseExpiry(driverInfo.license_expiry_date || "");
+  }, [driverInfo]);
+
+  const handleFileChangeLocal = (e) => {
+    const { name, files: selectedFiles } = e.target;
+    setFiles(prev => ({ ...prev, [name]: selectedFiles[0] }));
+  };
+
+  const documents = [
+    { key: "license_file", label: "License", expiry: "license_expiry_date", uploaded: "license_file_uploaded_at" },
+    { key: "passport_photo", label: "Passport Photo", expiry: null, uploaded: "passport_photo_uploaded_at" },
+    { key: "good_conduct_certificate", label: "Good Conduct Certificate", expiry: null, uploaded: "good_conduct_certificate_uploaded_at" },
+    { key: "port_pass", label: "Port Pass", expiry: null, uploaded: "port_pass_uploaded_at" },
+  ];
+
+  const getExpiryTooltip = (date) => {
+    if (!date) return '';
+    const diffDays = Math.ceil((new Date(date) - new Date()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? `Expires in ${diffDays} day(s)` : `Expired ${Math.abs(diffDays)} day(s) ago`;
+  };
+
+  const getUploadTooltip = (date) => {
+    if (!date) return '';
+    return `Uploaded: ${new Date(date).toLocaleDateString()}`;
+  };
+
+  const checkStatus = (fileName, expiryDate = null) => {
+    if (!fileName) return { status: "Missing", color: "#f8f9fa" };
+    if (expiryDate) {
+      const diffDays = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return { status: "Expired", color: "#f8d7da" };
+      if (diffDays <= 30) return { status: "Expiring Soon", color: "#fff3cd" };
+    }
+    return { status: "Valid", color: "#d4edda" };
+  };
+
+  return (
     <div>
       <h3>Documents</h3>
       <table border="1" cellPadding="5" style={{ width: "100%", marginTop: 10 }}>
@@ -209,15 +262,10 @@ const fetchDriverInfo = async () => {
           </tr>
         </thead>
         <tbody>
-          {[ 
-            { key: "license_file", label: "License", expiry: "license_expiry_date", uploaded: "license_file_uploaded_at" },
-            { key: "passport_photo", label: "Passport Photo", expiry: null, uploaded: "passport_photo_uploaded_at" },
-            { key: "good_conduct_certificate", label: "Good Conduct Certificate", expiry: null, uploaded: "good_conduct_certificate_uploaded_at" },
-            { key: "port_pass", label: "Port Pass", expiry: null, uploaded: "port_pass_uploaded_at" },
-          ].map(doc => {
-            const fileName = driverInfo[doc.key];
-            const expiryDate = doc.expiry ? driverInfo[doc.expiry] : null;
-            const uploadedDate = doc.uploaded ? driverInfo[doc.uploaded] : null;
+          {documents.map(doc => {
+            const fileName = driverInfo?.[doc.key] || null;
+            const expiryDate = doc.expiry ? driverInfo?.[doc.expiry] : null;
+            const uploadedDate = doc.uploaded ? driverInfo?.[doc.uploaded] : null;
             const { status, color } = checkStatus(fileName, expiryDate);
 
             return (
@@ -225,24 +273,19 @@ const fetchDriverInfo = async () => {
                 <td>{doc.label}</td>
                 <td title={fileName ? getUploadTooltip(uploadedDate) : "Not uploaded"}>
                   {fileName ? (
-                    <a href={`http://localhost:5000/uploads/driver/${fileName}`} target="_blank" rel="noreferrer">{doc.label} 📎</a>
+                    <a href={`http://localhost:5000/uploads/driver/${fileName}`} target="_blank" rel="noreferrer">
+                      {doc.label} 📎
+                    </a>
                   ) : "Not uploaded"}
                 </td>
                 <td title={expiryDate ? getExpiryTooltip(expiryDate) : ""}>{expiryDate || "N/A"}</td>
                 <td>
-                  <input type="file" name={doc.key} onChange={handleFileChange} style={{ marginRight: 5 }} />
+                  <input type="file" name={doc.key} onChange={handleFileChangeLocal} style={{ marginRight: 5 }} />
                   {files[doc.key] && <span>{files[doc.key].name}</span>}
                   <button
                     onClick={() => handleUpload(doc.key)}
                     disabled={!files[doc.key]}
-                    style={{
-                      marginLeft: 5,
-                      backgroundColor: "#007bff",
-                      color: "#fff",
-                      border: "none",
-                      padding: "5px 10px",
-                      borderRadius: 3,
-                    }}
+                    style={{ marginLeft: 5, backgroundColor: "#007bff", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
                   >
                     Upload
                   </button>
@@ -254,83 +297,193 @@ const fetchDriverInfo = async () => {
         </tbody>
       </table>
 
-      {/* License Update */}
+      {/* ------------------ License Updates ------------------ */}
       <div style={{ marginTop: 20 }}>
         <label>
           License Number:
-          <input type="text" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} style={{ marginLeft: 5 }} />
+          <input
+            type="text"
+            value={localLicenseNumber}
+            onChange={(e) => setLocalLicenseNumber(e.target.value)}
+            style={{ marginLeft: 5 }}
+          />
         </label>
-        <button onClick={handleLicenseUpdate} style={{ marginLeft: 10, backgroundColor: "green", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}>Update License</button>
+        <button
+          onClick={() => handleLicenseUpdate(localLicenseNumber)}
+          style={{ marginLeft: 10, backgroundColor: "green", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
+        >
+          Update License
+        </button>
       </div>
+
       <div style={{ marginTop: 10 }}>
         <label>
           License Expiry:
-          <input type="date" value={licenseExpiry} onChange={(e) => setLicenseExpiry(e.target.value)} style={{ marginLeft: 5 }} />
+          <input
+            type="date"
+            value={localLicenseExpiry}
+            onChange={(e) => setLocalLicenseExpiry(e.target.value)}
+            style={{ marginLeft: 5 }}
+          />
         </label>
-        <button onClick={handleLicenseExpiryUpdate} style={{ marginLeft: 10, backgroundColor: "orange", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}>Update Expiry</button>
+        <button
+          onClick={() => handleLicenseExpiryUpdate(localLicenseExpiry)}
+          style={{ marginLeft: 10, backgroundColor: "orange", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
+        >
+          Update Expiry
+        </button>
       </div>
     </div>
   );
+};
+
 
   // PersonalInfoTab, NextOfKinTab, PolicyTab remain exactly as your previous code
-  const PersonalInfoTab = () => (
+  const PersonalInfoTab = () => {
+  // Local states for each field
+  const [fullName, setFullName] = useState(driverInfo.full_name || "");
+  const [idNumber, setIdNumber] = useState(driverInfo.id_number || "");
+  const [phoneNumber, setPhoneNumber] = useState(driverInfo.phone_number || "");
+  const [email, setEmail] = useState(driverInfo.email || "");
+  const [residence, setResidence] = useState(driverInfo.residence || "");
+  const [kraPin, setKraPin] = useState(driverInfo.kra_pin || "");
+  const [nssfNumber, setNssfNumber] = useState(driverInfo.nssf_number || "");
+  const [nhifNumber, setNhifNumber] = useState(driverInfo.nhif_number || "");
+
+  // Keep local states in sync if driverInfo changes (on first load or after save)
+  useEffect(() => {
+    if (!driverInfo) return;
+    setFullName(driverInfo.full_name || "");
+    setIdNumber(driverInfo.id_number || "");
+    setPhoneNumber(driverInfo.phone_number || "");
+    setEmail(driverInfo.email || "");
+    setResidence(driverInfo.residence || "");
+    setKraPin(driverInfo.kra_pin || "");
+    setNssfNumber(driverInfo.nssf_number || "");
+    setNhifNumber(driverInfo.nhif_number || "");
+  }, [driverInfo]);
+
+  const handleSave = async () => {
+    try {
+      const payload = {
+        full_name: fullName,
+        id_number: idNumber,
+        phone_number: phoneNumber,
+        email,
+        residence,
+        kra_pin: kraPin,
+        nssf_number: nssfNumber,
+        nhif_number: nhifNumber,
+      };
+      const res = await api.put(`/api/drivers/${userId}`, payload);
+      alert("Personal information updated successfully!");
+      setDriverInfo(res.data); // sync backend response
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update personal information");
+    }
+  };
+
+  return (
     <div>
       <h3>Personal Information</h3>
-      {["full_name", "id_number", "phone_number", "email", "residence", "kra_pin", "nssf_number", "nhif_number"].map(field => (
-        <div key={field} style={{ marginTop: 10 }}>
-          <label>{field.replace("_", " ").toUpperCase()}:</label>
-          <input type="text" value={driverInfo[field] || ""} onChange={(e) => setDriverInfo({ ...driverInfo, [field]: e.target.value })} style={{ marginLeft: 10 }} />
+      {[
+        { label: "Full Name", value: fullName, setter: setFullName },
+        { label: "ID Number", value: idNumber, setter: setIdNumber },
+        { label: "Phone Number", value: phoneNumber, setter: setPhoneNumber },
+        { label: "Email", value: email, setter: setEmail },
+        { label: "Residence", value: residence, setter: setResidence },
+        { label: "KRA PIN", value: kraPin, setter: setKraPin },
+        { label: "NSSF Number", value: nssfNumber, setter: setNssfNumber },
+        { label: "NHIF Number", value: nhifNumber, setter: setNhifNumber },
+      ].map(field => (
+        <div key={field.label} style={{ marginTop: 10 }}>
+          <label>{field.label}:</label>
+          <input
+            type="text"
+            value={field.value}
+            onChange={(e) => field.setter(e.target.value)}
+            style={{ marginLeft: 10 }}
+          />
         </div>
       ))}
-      <button onClick={async () => {
-        try {
-          const payload = {
-            full_name: driverInfo.full_name,
-            id_number: driverInfo.id_number,
-            phone_number: driverInfo.phone_number,
-            email: driverInfo.email,
-            residence: driverInfo.residence,
-            kra_pin: driverInfo.kra_pin,
-            nssf_number: driverInfo.nssf_number,
-            nhif_number: driverInfo.nhif_number,
-          };
-          const res = await api.put(`/api/drivers/${userId}`, payload);
-          alert("Personal information updated successfully!");
-          setDriverInfo(res.data);
-        } catch (err) {
-          console.error(err);
-          alert("Failed to update personal information");
-        }
-      }} style={{ marginTop: 15, backgroundColor: "#17a2b8", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}>Save Personal Info</button>
+      <button
+        onClick={handleSave}
+        style={{
+          marginTop: 15,
+          backgroundColor: "#17a2b8",
+          color: "#fff",
+          border: "none",
+          padding: "5px 10px",
+          borderRadius: 3
+        }}
+      >
+        Save Personal Info
+      </button>
     </div>
   );
+};
+const NextOfKinTab = () => {
+  // Local states for smooth typing
+  const [kinName, setKinName] = useState(driverInfo.next_of_kin_name || "");
+  const [kinPhone, setKinPhone] = useState(driverInfo.next_of_kin_phone || "");
+  const [kinRelationship, setKinRelationship] = useState(driverInfo.next_of_kin_relationship || "");
 
-  const NextOfKinTab = () => (
+  useEffect(() => {
+    if (!driverInfo) return;
+    setKinName(driverInfo.next_of_kin_name || "");
+    setKinPhone(driverInfo.next_of_kin_phone || "");
+    setKinRelationship(driverInfo.next_of_kin_relationship || "");
+  }, [driverInfo]);
+
+  const handleKinSave = async () => {
+    try {
+      const payload = {
+        next_of_kin_name: kinName,
+        next_of_kin_phone: kinPhone,
+        next_of_kin_relationship: kinRelationship,
+      };
+      const res = await api.put(`/api/drivers/${userId}`, payload);
+      alert("Next of Kin info updated successfully!");
+      setDriverInfo(res.data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update Next of Kin info");
+    }
+  };
+
+  return (
     <div>
       <h3>Next of Kin</h3>
-      {["next_of_kin_name", "next_of_kin_phone", "next_of_kin_relationship"].map(field => (
-        <div key={field} style={{ marginTop: 10 }}>
-          <label>{field.replace("_", " ").toUpperCase()}:</label>
-          <input type="text" value={driverInfo[field] || ""} onChange={(e) => setDriverInfo({ ...driverInfo, [field]: e.target.value })} style={{ marginLeft: 10 }} />
-        </div>
-      ))}
-      <button onClick={async () => {
-        try {
-          const payload = {
-            next_of_kin_name: driverInfo.next_of_kin_name,
-            next_of_kin_phone: driverInfo.next_of_kin_phone,
-            next_of_kin_relationship: driverInfo.next_of_kin_relationship,
-          };
-          const res = await api.put(`/api/drivers/${userId}`, payload);
-          alert("Next of Kin info updated successfully!");
-          setDriverInfo(res.data);
-        } catch (err) {
-          console.error(err);
-          alert("Failed to update Next of Kin info");
-        }
-      }} style={{ marginTop: 15, backgroundColor: "#ffc107", color: "#green", border: "none", padding: "5px 10px", borderRadius: 3 }}>Save Next of Kin Info</button>
+      <div style={{ marginTop: 10 }}>
+        <label>Name:</label>
+        <input type="text" value={kinName} onChange={(e) => setKinName(e.target.value)} style={{ marginLeft: 10 }} />
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <label>Phone:</label>
+        <input type="text" value={kinPhone} onChange={(e) => setKinPhone(e.target.value)} style={{ marginLeft: 10 }} />
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <label>Relationship:</label>
+        <input type="text" value={kinRelationship} onChange={(e) => setKinRelationship(e.target.value)} style={{ marginLeft: 10 }} />
+      </div>
+      <button
+        onClick={handleKinSave}
+        style={{
+          marginTop: 15,
+          backgroundColor: "#ffc107",
+          color: "#000",
+          border: "none",
+          padding: "5px 10px",
+          borderRadius: 3,
+        }}
+      >
+        Save Next of Kin Info
+      </button>
     </div>
   );
+};
+ 
 
  const PolicyTab = () => (
   <div>
@@ -427,15 +580,34 @@ const fetchDriverInfo = async () => {
   );
 
   const renderActiveTab = () => {
-    if (!driverInfo) return <p>Loading driver info...</p>;
-    switch(activeTab) {
-      case "documents": return <DocumentsTab />;
-      case "personal": return <PersonalInfoTab />;
-      case "nextOfKin": return <NextOfKinTab />;
-      case "policy": return <PolicyTab />;
-      default: return null;
-    }
-  };
+  if (!driverInfo) return <p>Loading driver info...</p>;
+  switch(activeTab) {
+    case "documents":
+      return (
+        <DocumentsTab
+          driverInfo={driverInfo}
+          files={files}
+          setFiles={setFiles}
+          licenseNumber={licenseNumber}
+          setLicenseNumber={setLicenseNumber}
+          licenseExpiry={licenseExpiry}
+          setLicenseExpiry={setLicenseExpiry}
+          handleUpload={handleUpload}
+          handleLicenseUpdate={handleLicenseUpdate}
+          handleLicenseExpiryUpdate={handleLicenseExpiryUpdate}
+        />
+      );
+    case "personal":
+      return <PersonalInfoTab driverInfo={driverInfo} />;
+    case "nextOfKin":
+      return <NextOfKinTab driverInfo={driverInfo} />;
+    case "policy":
+      return <PolicyTab />;
+    default:
+      return null;
+  }
+};
+
 
   const renderDriverTab = () => (
     <div style={{ padding: 20 }}>

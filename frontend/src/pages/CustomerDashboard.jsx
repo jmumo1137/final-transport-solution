@@ -35,7 +35,7 @@ export default function CustomerDashboard() {
   };
 
   // 🚫 Restrict unauthorized access
-  if (role !== "consignee") return <Navigate to="/" replace />;
+  if (role !== "consignee") return <Navigate to="/"  />;
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
