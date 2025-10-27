@@ -80,24 +80,26 @@ const fetchDriverInfo = async () => {
   };
 
   // ---------------------- License Updates ----------------------
-  const handleLicenseUpdate = async () => {
-    if (!licenseNumber) return alert("License number cannot be empty.");
+  const handleLicenseUpdate = async (newLicenseNumber) => {
+    if (!newLicenseNumber) return alert("License number cannot be empty.");
     try {
-      const res = await api.put(`/api/drivers/${userId}`, { license_number: licenseNumber });
+      const res = await api.put(`/api/drivers/${userId}`, { license_number: newLicenseNumber });
       alert("License number updated successfully");
       setDriverInfo(res.data);
+      setLicenseNumber(newLicenseNumber);
     } catch (err) {
       console.error("License update error:", err.response?.data || err.message);
       alert("Failed to update license number");
     }
   };
 
-  const handleLicenseExpiryUpdate = async () => {
-    if (!licenseExpiry) return alert("Please enter the license expiry date.");
+  const handleLicenseExpiryUpdate = async (newLicenseExpiry) => {
+    if (!newLicenseExpiry) return alert("Please enter the license expiry date.");
     try {
-      const res = await api.put(`/api/drivers/${userId}`, { license_expiry_date: licenseExpiry });
+      const res = await api.put(`/api/drivers/${userId}`, { license_expiry_date: newLicenseExpiry });
       alert("License expiry date updated successfully");
       setDriverInfo(res.data);
+      setLicenseExpiry(newLicenseExpiry)
     } catch (err) {
       console.error("License expiry update error:", err.response?.data || err.message);
       alert("Failed to update license expiry date");
@@ -298,41 +300,42 @@ const DocumentsTab = ({
       </table>
 
       {/* ------------------ License Updates ------------------ */}
-      <div style={{ marginTop: 20 }}>
-        <label>
-          License Number:
-          <input
-            type="text"
-            value={localLicenseNumber}
-            onChange={(e) => setLocalLicenseNumber(e.target.value)}
-            style={{ marginLeft: 5 }}
-          />
-        </label>
-        <button
-          onClick={() => handleLicenseUpdate(localLicenseNumber)}
-          style={{ marginLeft: 10, backgroundColor: "green", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
-        >
-          Update License
-        </button>
-      </div>
+<div style={{ marginTop: 20 }}>
+  <label>
+    License Number:
+    <input
+      type="text"
+      value={localLicenseNumber}                  // local state
+      onChange={(e) => setLocalLicenseNumber(e.target.value)}
+      style={{ marginLeft: 5 }}
+    />
+  </label>
+  <button
+    onClick={() => handleLicenseUpdate(localLicenseNumber)}  // send local to parent
+    style={{ marginLeft: 10, backgroundColor: "green", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
+  >
+    Update License
+  </button>
+</div>
 
-      <div style={{ marginTop: 10 }}>
-        <label>
-          License Expiry:
-          <input
-            type="date"
-            value={localLicenseExpiry}
-            onChange={(e) => setLocalLicenseExpiry(e.target.value)}
-            style={{ marginLeft: 5 }}
-          />
-        </label>
-        <button
-          onClick={() => handleLicenseExpiryUpdate(localLicenseExpiry)}
-          style={{ marginLeft: 10, backgroundColor: "orange", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
-        >
-          Update Expiry
-        </button>
-      </div>
+<div style={{ marginTop: 10 }}>
+  <label>
+    License Expiry:
+    <input
+      type="date"
+      value={localLicenseExpiry}                // <-- use local state
+      onChange={(e) => setLocalLicenseExpiry(e.target.value)}
+      style={{ marginLeft: 5 }}
+    />
+  </label>
+  <button
+    onClick={() => handleLicenseExpiryUpdate(localLicenseExpiry)}  // <-- send local to parent
+    style={{ marginLeft: 10, backgroundColor: "orange", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
+  >
+    Update Expiry
+  </button>
+</div>
+
     </div>
   );
 };
