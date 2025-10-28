@@ -27,6 +27,7 @@ const authSlice = createSlice({
       localStorage.removeItem('role');
       localStorage.removeItem('userId');
       localStorage.removeItem('username');
+      window.location.href = "/login";
     },
   },
 });

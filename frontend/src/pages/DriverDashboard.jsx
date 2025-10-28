@@ -282,7 +282,7 @@ const DocumentsTab = ({
                 </td>
                 <td title={expiryDate ? getExpiryTooltip(expiryDate) : ""}>{expiryDate || "N/A"}</td>
                 <td>
-                  <input type="file" name={doc.key} onChange={handleFileChangeLocal} style={{ marginRight: 5 }} />
+                  <input key={files[doc.key] ? files[doc.key].name : "empty"} type="file" name={doc.key} onChange={handleFileChangeLocal} style={{ marginRight: 5 }} />
                   {files[doc.key] && <span>{files[doc.key].name}</span>}
                   <button
                     onClick={() => handleUpload(doc.key)}
@@ -323,13 +323,13 @@ const DocumentsTab = ({
     License Expiry:
     <input
       type="date"
-      value={localLicenseExpiry}                // <-- use local state
+      value={localLicenseExpiry}  
       onChange={(e) => setLocalLicenseExpiry(e.target.value)}
       style={{ marginLeft: 5 }}
     />
   </label>
   <button
-    onClick={() => handleLicenseExpiryUpdate(localLicenseExpiry)}  // <-- send local to parent
+    onClick={() => handleLicenseExpiryUpdate(localLicenseExpiry)} 
     style={{ marginLeft: 10, backgroundColor: "orange", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 3 }}
   >
     Update Expiry
@@ -547,7 +547,7 @@ const NextOfKinTab = () => {
       }}style={{
     marginTop: 15,
     backgroundColor: "#ffc107",
-    color: "#green",
+    color: "green",
     border: "none",
     padding: "8px 16px",
     borderRadius: 6,

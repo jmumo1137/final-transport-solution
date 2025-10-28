@@ -4,7 +4,6 @@ import { useSelector } from 'react-redux';
 import { selectToken, selectUserRole } from './features/auth/authSlice';
 
 // Pages
-import LandingPage from './pages/LandingPage';
 import LoginForm from './pages/LoginForm';
 import Dashboard from './pages/Dashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
@@ -30,13 +29,13 @@ function DashboardWrapper() {
     case 'driver':
       return <DriverDashboard />;
     case 'consignee': // customer role
-      return <CustomerDashboard />; // Or create a dedicated CustomerDashboard
+      return <CustomerDashboard />; 
     case 'dispatcher':
     case 'admin':
     case 'operations':
       return <Dashboard />;
     default:
-      return <LandingPage />;
+      return <LoginForm />;
   }
 }
 
@@ -51,7 +50,7 @@ function App() {
       <div style={{ marginLeft: token ? '200px' : '0', padding: '20px' }}>
         <Routes>
           {/* Landing / Login */}
-          <Route path="/" element={token ? <Navigate to="/dashboard" /> : <LandingPage />} />
+          <Route path="/" element={token ? <Navigate to="/dashboard" /> : <LoginForm />} />
           <Route path="/login" element={<LoginForm />} />
 
           {/* Dashboard Wrapper with role-based redirection */}

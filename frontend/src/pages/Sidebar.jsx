@@ -29,7 +29,6 @@ export default function Sidebar() {
 
     const handleLogout = () => {
         dispatch(logout());
-        navigate('/');
     };
 
     const handleSubmenuToggle = (name) => {
